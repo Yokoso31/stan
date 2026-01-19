@@ -53,7 +53,7 @@
 
 <body>
 
-<div id="ui">Score: <span id="score">0</span> | Vies: <span id="lives">3</span></div>
+<div id="ui">Score: <span id="score">0</span> | Vies: <span id="lives">3</span> | Niveau: <span id="level">1</span></div>
 
 <div id="gameOver">
     <h1>GAME OVER</h1>
@@ -71,6 +71,7 @@ const ctx = canvas.getContext("2d");
 
 let score = 0;
 let lives = 3;
+let level = 1;
 let gameRunning = true;
 
 /* ==========================
@@ -91,27 +92,32 @@ const player = {
     speed: 6
 };
 
-const bullets = [];
+let bullets = [];
 
 /* ==========================
    ALIENS
 ========================== */
-const aliens = [];
+let aliens = [];
 const rows = 4;
 const cols = 8;
 let alienDirection = 1; // 1 = right, -1 = left
 let alienSpeed = 2;
 
-for (let y = 0; y < rows; y++) {
-    for (let x = 0; x < cols; x++) {
-        aliens.push({
-            x: 100 + x * 70,
-            y: 80 + y * 60,
-            size: 25,
-            angle: 0 // utilisé pour la rotation
-        });
+function initAliens() {
+    aliens = [];
+    for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+            aliens.push({
+                x: 100 + x * 70,
+                y: 80 + y * 60,
+                size: 25,
+                angle: 0 // utilisé pour la rotation
+            });
+        }
     }
 }
+
+initAliens();
 
 /* ==========================
    PARTICULES (EXPLOSIONS)
@@ -213,15 +219,25 @@ function update() {
     // Rotation des aliens
     aliens.forEach(a => a.angle += 0.02);
 
-    // Check Game Over (Alien invasion or all dead)
-    if (aliens.length === 0) gameOver();
+    // Check Level Complete
+    if (aliens.length === 0) {
+        nextLevel();
+    }
 
-    // Optional: Check if aliens hit player or bottom
+    // Check Game Over (Alien invasion)
     aliens.forEach(a => {
         if (a.y + a.size > player.y) {
              gameOver();
         }
     });
+}
+
+function nextLevel() {
+    level++;
+    alienSpeed += 0.5;
+    bullets = [];
+    alienDirection = 1;
+    initAliens();
 }
 
 /* ==========================
@@ -264,6 +280,7 @@ function draw() {
 
     document.getElementById("score").textContent = score;
     document.getElementById("lives").textContent = lives;
+    document.getElementById("level").textContent = level;
 }
 
 /* ==========================
