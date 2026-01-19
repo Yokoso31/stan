@@ -105,7 +105,8 @@ const player = {
     height: 20,
     speed: 6,
     shield: false,
-    rapidFireTimer: 0
+    rapidFireTimer: 0,
+    charge: 0 // Charge for secondary attack
 };
 
 // Powerups
@@ -117,8 +118,11 @@ const POWERUP_TYPES = [
 let powerups = [];
 
 let bullets = [];
+let megaBombs = []; // Secondary fire projectiles
+let damageExplosions = []; // Area of effect damage
 let alienBullets = []; // Projectiles ennemis
 let shootTimer = 0;
+let spacePrev = false; // Track previous frame input
 
 /* ==========================
    ALIENS
@@ -176,7 +180,7 @@ function update() {
     if (keys["ArrowRight"]) player.x += player.speed;
     player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
 
-    // Tir (Shoot Timer Logic)
+    // Tir (Shoot Timer & Charge Logic)
     if (shootTimer > 0) shootTimer--;
 
     // Determine fire rate
@@ -186,11 +190,37 @@ function update() {
         currentCooldown = 5; // Rapid fire
     }
 
-    if (keys["Space"] && shootTimer <= 0) {
-        bullets.push({ x: player.x + 20, y: player.y });
-        shootTimer = currentCooldown;
-        // keys["Space"] = false; // Removed to allow auto-fire when holding space
+    if (keys["Space"]) {
+        if (player.rapidFireTimer > 0) {
+            // Rapid Fire Mode (Standard Auto-Fire)
+            if (shootTimer <= 0) {
+                bullets.push({ x: player.x + 20, y: player.y });
+                shootTimer = currentCooldown;
+            }
+        } else {
+            // Normal Mode (Tap to shoot, Hold to Charge)
+            // Fire one bullet on just pressed
+            if (!spacePrev && shootTimer <= 0) {
+                bullets.push({ x: player.x + 20, y: player.y });
+                shootTimer = currentCooldown;
+            }
+
+            // Charge Logic
+            player.charge++;
+            if (player.charge >= 60) { // 1 second hold
+                // Fire Mega Bomb
+                megaBombs.push({
+                    x: player.x + 10,
+                    y: player.y - 20,
+                    size: 15
+                });
+                player.charge = 0;
+            }
+        }
+    } else {
+        player.charge = 0;
     }
+    spacePrev = keys["Space"];
 
     // Alien Movement
     let moveDown = false;
@@ -219,6 +249,69 @@ function update() {
             a.y += 20; // Drop down
             a.x += alienSpeed * alienDirection; // Move back into screen slightly to avoid sticking
         });
+    }
+
+    // Update Mega Bombs
+    for (let i = megaBombs.length - 1; i >= 0; i--) {
+        let b = megaBombs[i];
+        b.y -= 4; // Moves up slowly
+
+        // Detonate if off screen or hit top
+        if (b.y < 0) {
+            // Explode at top
+            damageExplosions.push({ x: b.x, y: b.y, radius: 10, life: 20 });
+            megaBombs.splice(i, 1);
+            continue;
+        }
+
+        // Check collision with aliens
+        let hit = false;
+        for (let j = aliens.length - 1; j >= 0; j--) {
+            let a = aliens[j];
+            let dx = b.x - a.x;
+            let dy = b.y - a.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+
+            if (dist < a.size + b.size) {
+                // Explode!
+                damageExplosions.push({ x: b.x, y: b.y, radius: 10, life: 20 });
+                megaBombs.splice(i, 1);
+                hit = true;
+                break;
+            }
+        }
+    }
+
+    // Update Damage Explosions (Area Effect)
+    for (let i = damageExplosions.length - 1; i >= 0; i--) {
+        let e = damageExplosions[i];
+        e.radius += 5; // Expand fast
+        e.life--;
+
+        // Check collision with ALL aliens
+        for (let j = aliens.length - 1; j >= 0; j--) {
+            let a = aliens[j];
+            let dx = e.x - a.x;
+            let dy = e.y - a.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+
+            if (dist < e.radius + a.size) {
+                createExplosion(a.x, a.y);
+                // Drop powerup logic repeated
+                 if (Math.random() < 0.1) {
+                    const type = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+                    powerups.push({
+                        x: a.x, y: a.y, type: type.type, color: type.color, label: type.label
+                    });
+                }
+                aliens.splice(j, 1);
+                score += 100;
+            }
+        }
+
+        if (e.life <= 0) {
+            damageExplosions.splice(i, 1);
+        }
     }
 
     // Update Alien Bullets
@@ -361,6 +454,8 @@ function nextLevel() {
     bullets = [];
     powerups = [];
     alienBullets = [];
+    megaBombs = [];
+    damageExplosions = [];
     alienDirection = 1;
     initAliens();
 }
@@ -390,6 +485,12 @@ function draw() {
         ctx.shadowColor = "#ffff00";
     }
 
+    // Charge Effect
+    if (player.charge > 0) {
+        ctx.shadowColor = `rgba(255, 100, 0, ${player.charge/60})`;
+        ctx.shadowBlur = 10 + (player.charge/2);
+    }
+
     // Simple shape change: A cross-like ship
     ctx.fillRect(player.x, player.y, player.width, player.height);
     ctx.fillRect(player.x + 15, player.y - 10, 10, 10); // turret
@@ -397,6 +498,23 @@ function draw() {
     // Bullets (Blood fire)
     ctx.fillStyle = player.rapidFireTimer > 0 ? "#ffff00" : "#ff4400";
     bullets.forEach(b => ctx.fillRect(b.x - 2, b.y, 4, 12));
+
+    // Mega Bombs (Charged Shot)
+    ctx.fillStyle = "#ffaa00";
+    ctx.shadowColor = "#ff0000";
+    megaBombs.forEach(b => {
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    // Damage Explosions (Area Effect)
+    damageExplosions.forEach(e => {
+        ctx.fillStyle = `rgba(255, 50, 0, ${e.life/20})`;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+        ctx.fill();
+    });
 
     // Alien Bullets (Green Acid/Slime)
     ctx.fillStyle = "#00ff00";
