@@ -2,14 +2,14 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Neon Space Invaders</title>
+<title>Horror Space Invaders</title>
 <style>
     html, body {
         margin: 0;
-        background: radial-gradient(circle at center, #050510, #000);
+        background: radial-gradient(circle at center, #200000, #000);
         overflow: hidden;
-        font-family: 'Arial', sans-serif;
-        color: cyan;
+        font-family: 'Courier New', monospace;
+        color: #ff3333;
     }
 
     canvas {
@@ -23,30 +23,44 @@
         width: 100%;
         text-align: center;
         font-size: 20px;
-        text-shadow: 0 0 10px cyan;
+        text-shadow: 0 0 10px #ff0000;
+        font-weight: bold;
     }
 
     #gameOver {
         position: absolute;
         inset: 0;
         display: none;
-        background: rgba(0,0,0,0.85);
+        background: rgba(0,0,0,0.9);
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        color: magenta;
-        text-shadow: 0 0 20px magenta;
+        color: #ff0000;
+        text-shadow: 0 0 20px #ff0000;
+    }
+
+    #gameOver h1 {
+        font-size: 60px;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #ff0000;
     }
 
     #gameOver button {
         margin-top: 20px;
         padding: 12px 30px;
-        font-size: 18px;
+        font-size: 20px;
+        font-family: 'Courier New', monospace;
         cursor: pointer;
-        background: black;
-        color: cyan;
-        border: 2px solid cyan;
-        box-shadow: 0 0 15px cyan;
+        background: #110000;
+        color: #ff3333;
+        border: 2px solid #ff3333;
+        box-shadow: 0 0 15px #ff0000;
+        transition: 0.3s;
+    }
+
+    #gameOver button:hover {
+        background: #ff3333;
+        color: black;
     }
 </style>
 </head>
@@ -56,8 +70,8 @@
 <div id="ui">Score: <span id="score">0</span> | Vies: <span id="lives">3</span> | Niveau: <span id="level">1</span></div>
 
 <div id="gameOver">
-    <h1>GAME OVER</h1>
-    <button onclick="restart()">REJOUER</button>
+    <h1>VOUS ÊTES MORT</h1>
+    <button onclick="restart()">RÉINCARNER</button>
 </div>
 
 <canvas id="game" width="800" height="600"></canvas>
@@ -132,7 +146,8 @@ function createExplosion(x, y) {
             y,
             vx: (Math.random() - 0.5) * 4,
             vy: (Math.random() - 0.5) * 4,
-            life: 30
+            life: 40,
+            color: Math.random() > 0.5 ? "#ff0000" : "#880000" // Blood colors
         });
     }
 }
@@ -217,7 +232,7 @@ function update() {
     }
 
     // Rotation des aliens
-    aliens.forEach(a => a.angle += 0.02);
+    aliens.forEach(a => a.angle += 0.05); // Faster rotation for chaos
 
     // Check Level Complete
     if (aliens.length === 0) {
@@ -246,35 +261,59 @@ function nextLevel() {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Joueur
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = "cyan";
-    ctx.fillStyle = "cyan";
+    // Joueur (Survivant / Croix)
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = "#ff0000";
+    ctx.fillStyle = "#bbbbbb"; // Bone white/grey
+
+    // Simple shape change: A cross-like ship
     ctx.fillRect(player.x, player.y, player.width, player.height);
+    ctx.fillRect(player.x + 15, player.y - 10, 10, 10); // turret
 
-    // Bullets
-    ctx.fillStyle = "yellow";
-    bullets.forEach(b => ctx.fillRect(b.x, b.y, 4, 10));
+    // Bullets (Blood fire)
+    ctx.fillStyle = "#ff4400";
+    bullets.forEach(b => ctx.fillRect(b.x - 2, b.y, 4, 12));
 
-    // Aliens avec rotation
+    // Aliens (Crânes)
     aliens.forEach(a => {
         ctx.save();
         ctx.translate(a.x, a.y);
-        ctx.rotate(a.angle); // <<< ROTATION
-        ctx.shadowColor = "magenta";
-        ctx.fillStyle = "magenta";
+        ctx.rotate(a.angle * 0.2); // Slight wobble
+
+        ctx.shadowColor = "#330000";
+        ctx.shadowBlur = 10;
+
+        // Skull shape (Circle + Jaw)
+        ctx.fillStyle = "#eeeeee"; // Bone color
         ctx.beginPath();
-        ctx.arc(0, 0, a.size, 0, Math.PI * 2);
+        ctx.arc(0, -5, a.size, 0, Math.PI * 2); // Head
         ctx.fill();
+
+        // Eyes
+        ctx.fillStyle = "#000";
+        ctx.beginPath();
+        ctx.arc(-8, -5, 6, 0, Math.PI * 2);
+        ctx.arc(8, -5, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Nose
+        ctx.beginPath();
+        ctx.moveTo(0, 2);
+        ctx.lineTo(-3, 8);
+        ctx.lineTo(3, 8);
+        ctx.fill();
+
         ctx.restore();
     });
 
-    // Particules
+    // Particules (Sang)
     particles.forEach(p => {
-        ctx.shadowColor = "cyan";
-        ctx.fillStyle = "cyan";
-        ctx.globalAlpha = p.life / 30;
-        ctx.fillRect(p.x, p.y, 3, 3);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life / 40;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2, 0, Math.PI*2);
+        ctx.fill();
         ctx.globalAlpha = 1;
     });
 
