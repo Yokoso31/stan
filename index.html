@@ -99,6 +99,8 @@ const bullets = [];
 const aliens = [];
 const rows = 4;
 const cols = 8;
+let alienDirection = 1; // 1 = right, -1 = left
+let alienSpeed = 2;
 
 for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
@@ -146,12 +148,40 @@ function update() {
         keys["Space"] = false;
     }
 
-    // Update bullets
-    bullets.forEach(b => b.y -= 8);
+    // Alien Movement
+    let moveDown = false;
+    aliens.forEach(a => {
+        a.x += alienSpeed * alienDirection;
+        // Check edges (using size as radius approx)
+        if (a.x + a.size > canvas.width || a.x - a.size < 0) {
+            moveDown = true;
+        }
+    });
 
-    // Collision bullet / alien
-    bullets.forEach((b, bi) => {
-        aliens.forEach((a, ai) => {
+    if (moveDown) {
+        alienDirection *= -1; // Reverse direction
+        aliens.forEach(a => {
+            a.y += 20; // Drop down
+            a.x += alienSpeed * alienDirection; // Move back into screen slightly to avoid sticking
+        });
+    }
+
+    // Update bullets and collisions
+    // Iterate backwards to safely remove elements
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        let b = bullets[i];
+        b.y -= 8;
+
+        // Remove if off-screen
+        if (b.y < 0) {
+            bullets.splice(i, 1);
+            continue;
+        }
+
+        // Check collision with aliens
+        let hit = false;
+        for (let j = aliens.length - 1; j >= 0; j--) {
+            let a = aliens[j];
             if (
                 b.x > a.x - a.size &&
                 b.x < a.x + a.size &&
@@ -159,25 +189,39 @@ function update() {
                 b.y < a.y + a.size
             ) {
                 createExplosion(a.x, a.y);
-                aliens.splice(ai, 1);
-                bullets.splice(bi, 1);
+                aliens.splice(j, 1);
                 score += 100;
+                hit = true;
+                break; // Bullet used up
             }
-        });
-    });
+        }
 
-    // Update particules
-    particles.forEach((p, i) => {
+        if (hit) {
+            bullets.splice(i, 1);
+        }
+    }
+
+    // Update particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
         p.x += p.vx;
         p.y += p.vy;
         p.life--;
         if (p.life <= 0) particles.splice(i, 1);
-    });
+    }
 
     // Rotation des aliens
     aliens.forEach(a => a.angle += 0.02);
 
+    // Check Game Over (Alien invasion or all dead)
     if (aliens.length === 0) gameOver();
+
+    // Optional: Check if aliens hit player or bottom
+    aliens.forEach(a => {
+        if (a.y + a.size > player.y) {
+             gameOver();
+        }
+    });
 }
 
 /* ==========================
