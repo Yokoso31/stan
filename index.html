@@ -64,7 +64,6 @@
     }
 </style>
 </head>
-
 <body>
 
 <div id="ui">Score: <span id="score">0</span> | Vies: <span id="lives">3</span> | Niveau: <span id="level">1</span></div>
@@ -106,10 +105,9 @@ const player = {
     speed: 6,
     shield: false,
     rapidFireTimer: 0,
-    charge: 0 // Charge for secondary attack
+    charge: 0
 };
 
-// Powerups
 const POWERUP_TYPES = [
     { type: 'HEALTH', color: '#00ffff', label: 'H' },
     { type: 'SHIELD', color: '#0000ff', label: 'S' },
@@ -118,11 +116,11 @@ const POWERUP_TYPES = [
 let powerups = [];
 
 let bullets = [];
-let megaBombs = []; // Secondary fire projectiles
-let damageExplosions = []; // Area of effect damage
-let alienBullets = []; // Projectiles ennemis
+let megaBombs = [];
+let damageExplosions = [];
+let alienBullets = [];
 let shootTimer = 0;
-let spacePrev = false; // Track previous frame input
+let spacePrev = false;
 
 /* ==========================
    ALIENS
@@ -130,29 +128,235 @@ let spacePrev = false; // Track previous frame input
 let aliens = [];
 const rows = 4;
 const cols = 8;
-let alienDirection = 1; // 1 = right, -1 = left
+let alienDirection = 1;
 let alienSpeed = 2;
 
 function initAliens() {
     aliens = [];
     alienBullets = [];
+    boss = null;
     for (let y = 0; y < rows; y++) {
         for (let x = 0; x < cols; x++) {
             aliens.push({
                 x: 100 + x * 70,
                 y: 80 + y * 60,
                 size: 25,
-                angle: 0 // utilisé pour la rotation
+                angle: 0
             });
         }
     }
 }
 
-initAliens();
+/* ==========================
+   BOSS
+========================== */
+let boss = null;
+const BOSS_PHASE = {
+    HOVER: 0,
+    CHARGE_TELL: 1,
+    CHARGE: 2,
+    RETURN: 3
+};
+
+function initBoss() {
+    aliens = [];
+    alienBullets = [];
+    boss = {
+        x: canvas.width / 2 - 40,
+        y: 60,
+        width: 80,
+        height: 100,
+        hp: 100 * (level * 0.5),
+        maxHp: 100 * (level * 0.5),
+        phase: BOSS_PHASE.HOVER,
+        timer: 0,
+        vx: 3,
+        vy: 0,
+        targetX: 0,
+        targetY: 0
+    };
+}
+
+function updateBoss() {
+    if (!boss) return;
+
+    boss.timer++;
+
+    if (boss.phase === BOSS_PHASE.HOVER) {
+        // Move side to side
+        boss.x += boss.vx;
+        if (boss.x <= 50 || boss.x >= canvas.width - 50 - boss.width) {
+            boss.vx *= -1;
+        }
+
+        // Shoot aimed bullets
+        if (boss.timer % 60 === 0) {
+            let dx = player.x - (boss.x + boss.width/2);
+            let dy = player.y - (boss.y + boss.height/2);
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            alienBullets.push({
+                x: boss.x + boss.width/2 - 5,
+                y: boss.y + boss.height,
+                width: 15,
+                height: 15,
+                vx: (dx/dist) * 6,
+                vy: (dy/dist) * 6,
+                isBoss: true
+            });
+        }
+
+        // Switch to Charge
+        if (boss.timer > 300) {
+            boss.phase = BOSS_PHASE.CHARGE_TELL;
+            boss.timer = 0;
+        }
+
+    } else if (boss.phase === BOSS_PHASE.CHARGE_TELL) {
+        // Warning shake
+        boss.x += (Math.random() - 0.5) * 10;
+
+        if (boss.timer > 60) {
+            boss.phase = BOSS_PHASE.CHARGE;
+            boss.timer = 0;
+            boss.targetX = player.x;
+            boss.targetY = player.y;
+
+            let dx = boss.targetX - boss.x;
+            let dy = boss.targetY - boss.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            boss.vx = (dx/dist) * 12;
+            boss.vy = (dy/dist) * 12;
+        }
+
+    } else if (boss.phase === BOSS_PHASE.CHARGE) {
+        boss.x += boss.vx;
+        boss.y += boss.vy;
+
+        if (boss.y > canvas.height - 100 || boss.x < 0 || boss.x > canvas.width || boss.y < 0) {
+             boss.phase = BOSS_PHASE.RETURN;
+             boss.timer = 0;
+        }
+
+    } else if (boss.phase === BOSS_PHASE.RETURN) {
+        let targetX = canvas.width / 2 - boss.width/2;
+        let targetY = 60;
+
+        boss.x += (targetX - boss.x) * 0.05;
+        boss.y += (targetY - boss.y) * 0.05;
+
+        if (Math.abs(boss.x - targetX) < 5 && Math.abs(boss.y - targetY) < 5) {
+            boss.phase = BOSS_PHASE.HOVER;
+            boss.timer = 0;
+            boss.vx = 3 * (Math.random() > 0.5 ? 1 : -1);
+        }
+    }
+
+    // Collision Player Bullets vs Boss
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        let b = bullets[i];
+        if (b.x > boss.x && b.x < boss.x + boss.width &&
+            b.y > boss.y && b.y < boss.y + boss.height) {
+
+            boss.hp -= 1;
+            createExplosion(b.x, b.y);
+            bullets.splice(i, 1);
+        }
+    }
+
+    // Mega Bombs vs Boss
+    for (let i = megaBombs.length - 1; i >= 0; i--) {
+        let b = megaBombs[i];
+         if (b.x > boss.x && b.x < boss.x + boss.width &&
+            b.y > boss.y && b.y < boss.y + boss.height) {
+
+            boss.hp -= 10;
+            damageExplosions.push({ x: b.x, y: b.y, radius: 10, life: 20 });
+            megaBombs.splice(i, 1);
+        }
+    }
+
+    // Area Explosions vs Boss
+    for (let e of damageExplosions) {
+        let dx = e.x - (boss.x + boss.width/2);
+        let dy = e.y - (boss.y + boss.height/2);
+        let dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < e.radius + boss.width/2 && e.life % 5 === 0) {
+             boss.hp -= 0.5;
+        }
+    }
+
+    // Boss Death
+    if (boss.hp <= 0) {
+        for(let k=0; k<15; k++)
+            createExplosion(boss.x + Math.random()*boss.width, boss.y + Math.random()*boss.height);
+
+        boss = null;
+        score += 5000;
+        nextLevel();
+    }
+
+    // Boss Collision with Player
+    if (boss &&
+        player.x < boss.x + boss.width && player.x + player.width > boss.x &&
+        player.y < boss.y + boss.height && player.y + player.height > boss.y) {
+
+        if (!player.shield) {
+            lives--;
+            player.y += 50; // Push back
+            if(lives <= 0) gameOver();
+        } else {
+            player.shield = false;
+        }
+    }
+}
+
+function drawBoss() {
+    if (!boss) return;
+
+    ctx.save();
+    ctx.translate(boss.x + boss.width/2, boss.y + boss.height/2);
+
+    if (boss.phase === BOSS_PHASE.CHARGE_TELL) {
+         ctx.translate((Math.random()-0.5)*5, (Math.random()-0.5)*5);
+    }
+
+    // Boss Visual: Big Skull
+    ctx.shadowColor = "#ff0000";
+    ctx.shadowBlur = 20;
+
+    ctx.fillStyle = "#eeeeee";
+    ctx.beginPath();
+    ctx.arc(0, -10, 40, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.fillRect(-25, 10, 50, 40); // Jaw
+
+    ctx.fillStyle = "#000";
+    ctx.beginPath();
+    ctx.arc(-15, -10, 12, 0, Math.PI*2);
+    ctx.arc(15, -10, 12, 0, Math.PI*2);
+    ctx.fill();
+
+    // Glowing eyes
+    ctx.fillStyle = "#ff0000";
+    ctx.beginPath();
+    ctx.arc(-15, -10, 4, 0, Math.PI*2);
+    ctx.arc(15, -10, 4, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.restore();
+
+    // Health Bar
+    ctx.fillStyle = "#330000";
+    ctx.fillRect(boss.x, boss.y - 30, boss.width, 10);
+    ctx.fillStyle = "#ff0000";
+    ctx.fillRect(boss.x, boss.y - 30, boss.width * (Math.max(0, boss.hp) / boss.maxHp), 10);
+    ctx.strokeStyle = "#fff";
+    ctx.strokeRect(boss.x, boss.y - 30, boss.width, 10);
+}
 
 /* ==========================
-   PARTICULES (EXPLOSIONS)
-   Chaque particule a une vitesse, une durée de vie et une couleur
+   PARTICULES
 ========================== */
 const particles = [];
 
@@ -164,7 +368,7 @@ function createExplosion(x, y) {
             vx: (Math.random() - 0.5) * 4,
             vy: (Math.random() - 0.5) * 4,
             life: 40,
-            color: Math.random() > 0.5 ? "#ff0000" : "#880000" // Blood colors
+            color: Math.random() > 0.5 ? "#ff0000" : "#880000"
         });
     }
 }
@@ -180,35 +384,28 @@ function update() {
     if (keys["ArrowRight"]) player.x += player.speed;
     player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
 
-    // Tir (Shoot Timer & Charge Logic)
+    // Tir
     if (shootTimer > 0) shootTimer--;
 
-    // Determine fire rate
     let currentCooldown = 20;
     if (player.rapidFireTimer > 0) {
         player.rapidFireTimer--;
-        currentCooldown = 5; // Rapid fire
+        currentCooldown = 5;
     }
 
     if (keys["Space"]) {
         if (player.rapidFireTimer > 0) {
-            // Rapid Fire Mode (Standard Auto-Fire)
             if (shootTimer <= 0) {
                 bullets.push({ x: player.x + 20, y: player.y });
                 shootTimer = currentCooldown;
             }
         } else {
-            // Normal Mode (Tap to shoot, Hold to Charge)
-            // Fire one bullet on just pressed
             if (!spacePrev && shootTimer <= 0) {
                 bullets.push({ x: player.x + 20, y: player.y });
                 shootTimer = currentCooldown;
             }
-
-            // Charge Logic
             player.charge++;
-            if (player.charge >= 60) { // 1 second hold
-                // Fire Mega Bomb
+            if (player.charge >= 60) {
                 megaBombs.push({
                     x: player.x + 10,
                     y: player.y - 20,
@@ -222,90 +419,103 @@ function update() {
     }
     spacePrev = keys["Space"];
 
-    // Alien Movement
-    let moveDown = false;
-    aliens.forEach(a => {
-        a.x += alienSpeed * alienDirection;
-        // Check edges (using size as radius approx)
-        if (a.x + a.size > canvas.width || a.x - a.size < 0) {
-            moveDown = true;
-        }
+    // BRANCHEMENT BOSS vs ALIENS
+    if (boss) {
+        updateBoss();
+    } else {
+        let moveDown = false;
+        aliens.forEach(a => {
+            a.x += alienSpeed * alienDirection;
+            if (a.x + a.size > canvas.width || a.x - a.size < 0) {
+                moveDown = true;
+            }
 
-        // Alien Shooting Logic
-        // Chance to shoot increases slightly with level
-        if (Math.random() < 0.002 * level + 0.002) {
-            alienBullets.push({
-                x: a.x,
-                y: a.y + a.size,
-                width: 4,
-                height: 10
+            if (Math.random() < 0.002 * level + 0.002) {
+                alienBullets.push({
+                    x: a.x,
+                    y: a.y + a.size,
+                    width: 4,
+                    height: 10
+                });
+            }
+        });
+
+        if (moveDown) {
+            alienDirection *= -1;
+            aliens.forEach(a => {
+                a.y += 20;
+                a.x += alienSpeed * alienDirection;
             });
         }
-    });
 
-    if (moveDown) {
-        alienDirection *= -1; // Reverse direction
+        // Check Level Complete
+        if (aliens.length === 0) {
+            nextLevel();
+        }
+
         aliens.forEach(a => {
-            a.y += 20; // Drop down
-            a.x += alienSpeed * alienDirection; // Move back into screen slightly to avoid sticking
+            if (a.y + a.size > player.y) {
+                 gameOver();
+            }
         });
     }
+
+    // Common Updates (Projectiles, Particles)
 
     // Update Mega Bombs
     for (let i = megaBombs.length - 1; i >= 0; i--) {
         let b = megaBombs[i];
-        b.y -= 4; // Moves up slowly
+        b.y -= 4;
 
-        // Detonate if off screen or hit top
         if (b.y < 0) {
-            // Explode at top
             damageExplosions.push({ x: b.x, y: b.y, radius: 10, life: 20 });
             megaBombs.splice(i, 1);
             continue;
         }
 
-        // Check collision with aliens
-        let hit = false;
-        for (let j = aliens.length - 1; j >= 0; j--) {
-            let a = aliens[j];
-            let dx = b.x - a.x;
-            let dy = b.y - a.y;
-            let dist = Math.sqrt(dx*dx + dy*dy);
+        // Collision vs Aliens
+        if (!boss) {
+            let hit = false;
+            for (let j = aliens.length - 1; j >= 0; j--) {
+                let a = aliens[j];
+                let dx = b.x - a.x;
+                let dy = b.y - a.y;
+                let dist = Math.sqrt(dx*dx + dy*dy);
 
-            if (dist < a.size + b.size) {
-                // Explode!
-                damageExplosions.push({ x: b.x, y: b.y, radius: 10, life: 20 });
-                megaBombs.splice(i, 1);
-                hit = true;
-                break;
+                if (dist < a.size + b.size) {
+                    damageExplosions.push({ x: b.x, y: b.y, radius: 10, life: 20 });
+                    megaBombs.splice(i, 1);
+                    hit = true;
+                    break;
+                }
             }
         }
     }
 
-    // Update Damage Explosions (Area Effect)
+    // Update Damage Explosions
     for (let i = damageExplosions.length - 1; i >= 0; i--) {
         let e = damageExplosions[i];
-        e.radius += 5; // Expand fast
+        e.radius += 5;
         e.life--;
 
-        // Check collision with ALL aliens
-        for (let j = aliens.length - 1; j >= 0; j--) {
-            let a = aliens[j];
-            let dx = e.x - a.x;
-            let dy = e.y - a.y;
-            let dist = Math.sqrt(dx*dx + dy*dy);
+        if (!boss) {
+            for (let j = aliens.length - 1; j >= 0; j--) {
+                let a = aliens[j];
+                let dx = e.x - a.x;
+                let dy = e.y - a.y;
+                let dist = Math.sqrt(dx*dx + dy*dy);
 
-            if (dist < e.radius + a.size) {
-                createExplosion(a.x, a.y);
-                // Drop powerup logic repeated
-                 if (Math.random() < 0.1) {
-                    const type = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
-                    powerups.push({
-                        x: a.x, y: a.y, type: type.type, color: type.color, label: type.label
-                    });
+                if (dist < e.radius + a.size) {
+                    createExplosion(a.x, a.y);
+                     if (Math.random() < 0.1) {
+                        const type = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+                        powerups.push({
+                            x: a.x, y: a.y, type: type.type, color: type.color, label: type.label
+                        });
+                    }
+                    aliens.splice(j, 1);
+                    score += 100;
                 }
-                aliens.splice(j, 1);
-                score += 100;
             }
         }
 
@@ -317,15 +527,19 @@ function update() {
     // Update Alien Bullets
     for (let i = alienBullets.length - 1; i >= 0; i--) {
         let b = alienBullets[i];
-        b.y += 5; // Alien bullet speed
 
-        // Remove off-screen
-        if (b.y > canvas.height) {
+        if (b.vx !== undefined && b.vy !== undefined) {
+            b.x += b.vx;
+            b.y += b.vy;
+        } else {
+            b.y += 5;
+        }
+
+        if (b.y > canvas.height || b.y < 0 || b.x < 0 || b.x > canvas.width) {
             alienBullets.splice(i, 1);
             continue;
         }
 
-        // Collision with Player
         if (
             b.x < player.x + player.width &&
             b.x + b.width > player.x &&
@@ -333,7 +547,7 @@ function update() {
             b.y + b.height > player.y
         ) {
             if (player.shield) {
-                player.shield = false; // Consume shield
+                player.shield = false;
                 alienBullets.splice(i, 1);
             } else {
                 lives--;
@@ -350,76 +564,64 @@ function update() {
         let p = powerups[i];
         p.y += 3;
 
-        // Remove off screen
         if (p.y > canvas.height) {
             powerups.splice(i, 1);
             continue;
         }
 
-        // Collision with player
         if (
             p.x < player.x + player.width &&
             p.x + 20 > player.x &&
             p.y < player.y + player.height &&
             p.y + 20 > player.y
         ) {
-            // Apply Effect
             if (p.type === 'HEALTH') {
                 lives = Math.min(lives + 1, 5);
             } else if (p.type === 'SHIELD') {
                 player.shield = true;
             } else if (p.type === 'RAPID_FIRE') {
-                player.rapidFireTimer = 300; // 5 seconds
+                player.rapidFireTimer = 300;
             }
             powerups.splice(i, 1);
         }
     }
 
-    // Update bullets and collisions
-    // Iterate backwards to safely remove elements
+    // Update Bullets
     for (let i = bullets.length - 1; i >= 0; i--) {
         let b = bullets[i];
         b.y -= 8;
 
-        // Remove if off-screen
         if (b.y < 0) {
             bullets.splice(i, 1);
             continue;
         }
 
-        // Check collision with aliens
-        let hit = false;
-        for (let j = aliens.length - 1; j >= 0; j--) {
-            let a = aliens[j];
-            if (
-                b.x > a.x - a.size &&
-                b.x < a.x + a.size &&
-                b.y > a.y - a.size &&
-                b.y < a.y + a.size
-            ) {
-                createExplosion(a.x, a.y);
+        if (!boss) {
+            let hit = false;
+            for (let j = aliens.length - 1; j >= 0; j--) {
+                let a = aliens[j];
+                if (
+                    b.x > a.x - a.size &&
+                    b.x < a.x + a.size &&
+                    b.y > a.y - a.size &&
+                    b.y < a.y + a.size
+                ) {
+                    createExplosion(a.x, a.y);
 
-                // Chance to drop powerup (10%)
-                if (Math.random() < 0.1) {
-                    const type = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
-                    powerups.push({
-                        x: a.x,
-                        y: a.y,
-                        type: type.type,
-                        color: type.color,
-                        label: type.label
-                    });
+                    if (Math.random() < 0.1) {
+                        const type = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+                        powerups.push({
+                            x: a.x, y: a.y, type: type.type, color: type.color, label: type.label
+                        });
+                    }
+
+                    aliens.splice(j, 1);
+                    score += 100;
+                    hit = true;
+                    break;
                 }
-
-                aliens.splice(j, 1);
-                score += 100;
-                hit = true;
-                break; // Bullet used up
             }
-        }
-
-        if (hit) {
-            bullets.splice(i, 1);
+            if (hit) bullets.splice(i, 1);
         }
     }
 
@@ -432,20 +634,7 @@ function update() {
         if (p.life <= 0) particles.splice(i, 1);
     }
 
-    // Rotation des aliens
-    aliens.forEach(a => a.angle += 0.05); // Faster rotation for chaos
-
-    // Check Level Complete
-    if (aliens.length === 0) {
-        nextLevel();
-    }
-
-    // Check Game Over (Alien invasion)
-    aliens.forEach(a => {
-        if (a.y + a.size > player.y) {
-             gameOver();
-        }
-    });
+    aliens.forEach(a => a.angle += 0.05);
 }
 
 function nextLevel() {
@@ -456,8 +645,13 @@ function nextLevel() {
     alienBullets = [];
     megaBombs = [];
     damageExplosions = [];
-    alienDirection = 1;
-    initAliens();
+
+    if (level % 2 === 0) {
+        initBoss();
+    } else {
+        alienDirection = 1;
+        initAliens();
+    }
 }
 
 /* ==========================
@@ -466,12 +660,11 @@ function nextLevel() {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Joueur (Survivant / Croix)
+    // Joueur
     ctx.shadowBlur = 15;
     ctx.shadowColor = "#ff0000";
-    ctx.fillStyle = "#bbbbbb"; // Bone white/grey
+    ctx.fillStyle = "#bbbbbb";
 
-    // Shield effect
     if (player.shield) {
         ctx.strokeStyle = "#0000ff";
         ctx.lineWidth = 3;
@@ -480,26 +673,21 @@ function draw() {
         ctx.stroke();
     }
 
-    // Rapid Fire effect
     if (player.rapidFireTimer > 0) {
         ctx.shadowColor = "#ffff00";
     }
 
-    // Charge Effect
     if (player.charge > 0) {
         ctx.shadowColor = `rgba(255, 100, 0, ${player.charge/60})`;
         ctx.shadowBlur = 10 + (player.charge/2);
     }
 
-    // Simple shape change: A cross-like ship
     ctx.fillRect(player.x, player.y, player.width, player.height);
-    ctx.fillRect(player.x + 15, player.y - 10, 10, 10); // turret
+    ctx.fillRect(player.x + 15, player.y - 10, 10, 10);
 
-    // Bullets (Blood fire)
     ctx.fillStyle = player.rapidFireTimer > 0 ? "#ffff00" : "#ff4400";
     bullets.forEach(b => ctx.fillRect(b.x - 2, b.y, 4, 12));
 
-    // Mega Bombs (Charged Shot)
     ctx.fillStyle = "#ffaa00";
     ctx.shadowColor = "#ff0000";
     megaBombs.forEach(b => {
@@ -508,7 +696,6 @@ function draw() {
         ctx.fill();
     });
 
-    // Damage Explosions (Area Effect)
     damageExplosions.forEach(e => {
         ctx.fillStyle = `rgba(255, 50, 0, ${e.life/20})`;
         ctx.beginPath();
@@ -516,12 +703,10 @@ function draw() {
         ctx.fill();
     });
 
-    // Alien Bullets (Green Acid/Slime)
     ctx.fillStyle = "#00ff00";
     ctx.shadowColor = "#00ff00";
     alienBullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
 
-    // Powerups
     powerups.forEach(p => {
         ctx.fillStyle = p.color;
         ctx.shadowColor = p.color;
@@ -532,39 +717,40 @@ function draw() {
         ctx.fillText(p.label, p.x - 5, p.y + 5);
     });
 
-    // Aliens (Crânes)
-    aliens.forEach(a => {
-        ctx.save();
-        ctx.translate(a.x, a.y);
-        ctx.rotate(a.angle * 0.2); // Slight wobble
+    // Draw Boss
+    if (boss) {
+        drawBoss();
+    } else {
+        // Draw Aliens
+        aliens.forEach(a => {
+            ctx.save();
+            ctx.translate(a.x, a.y);
+            ctx.rotate(a.angle * 0.2);
 
-        ctx.shadowColor = "#330000";
-        ctx.shadowBlur = 10;
+            ctx.shadowColor = "#330000";
+            ctx.shadowBlur = 10;
 
-        // Skull shape (Circle + Jaw)
-        ctx.fillStyle = "#eeeeee"; // Bone color
-        ctx.beginPath();
-        ctx.arc(0, -5, a.size, 0, Math.PI * 2); // Head
-        ctx.fill();
+            ctx.fillStyle = "#eeeeee";
+            ctx.beginPath();
+            ctx.arc(0, -5, a.size, 0, Math.PI * 2);
+            ctx.fill();
 
-        // Eyes
-        ctx.fillStyle = "#000";
-        ctx.beginPath();
-        ctx.arc(-8, -5, 6, 0, Math.PI * 2);
-        ctx.arc(8, -5, 6, 0, Math.PI * 2);
-        ctx.fill();
+            ctx.fillStyle = "#000";
+            ctx.beginPath();
+            ctx.arc(-8, -5, 6, 0, Math.PI * 2);
+            ctx.arc(8, -5, 6, 0, Math.PI * 2);
+            ctx.fill();
 
-        // Nose
-        ctx.beginPath();
-        ctx.moveTo(0, 2);
-        ctx.lineTo(-3, 8);
-        ctx.lineTo(3, 8);
-        ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(0, 2);
+            ctx.lineTo(-3, 8);
+            ctx.lineTo(3, 8);
+            ctx.fill();
 
-        ctx.restore();
-    });
+            ctx.restore();
+        });
+    }
 
-    // Particules (Sang)
     particles.forEach(p => {
         ctx.shadowBlur = 0;
         ctx.fillStyle = p.color;
@@ -580,9 +766,6 @@ function draw() {
     document.getElementById("level").textContent = level;
 }
 
-/* ==========================
-   GAME OVER
-========================== */
 function gameOver() {
     gameRunning = false;
     document.getElementById("gameOver").style.display = "flex";
@@ -592,15 +775,14 @@ function restart() {
     location.reload();
 }
 
-/* ==========================
-   LOOP
-========================== */
 function loop() {
     update();
     draw();
     requestAnimationFrame(loop);
 }
 
+// Start with aliens
+initAliens();
 loop();
 </script>
 
