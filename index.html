@@ -107,6 +107,7 @@ const player = {
 };
 
 let bullets = [];
+let alienBullets = []; // Projectiles ennemis
 
 /* ==========================
    ALIENS
@@ -119,6 +120,7 @@ let alienSpeed = 2;
 
 function initAliens() {
     aliens = [];
+    alienBullets = [];
     for (let y = 0; y < rows; y++) {
         for (let x = 0; x < cols; x++) {
             aliens.push({
@@ -177,6 +179,17 @@ function update() {
         if (a.x + a.size > canvas.width || a.x - a.size < 0) {
             moveDown = true;
         }
+
+        // Alien Shooting Logic
+        // Chance to shoot increases slightly with level
+        if (Math.random() < 0.001 * level + 0.002) {
+            alienBullets.push({
+                x: a.x,
+                y: a.y + a.size,
+                width: 4,
+                height: 10
+            });
+        }
     });
 
     if (moveDown) {
@@ -185,6 +198,33 @@ function update() {
             a.y += 20; // Drop down
             a.x += alienSpeed * alienDirection; // Move back into screen slightly to avoid sticking
         });
+    }
+
+    // Update Alien Bullets
+    for (let i = alienBullets.length - 1; i >= 0; i--) {
+        let b = alienBullets[i];
+        b.y += 5; // Alien bullet speed
+
+        // Remove off-screen
+        if (b.y > canvas.height) {
+            alienBullets.splice(i, 1);
+            continue;
+        }
+
+        // Collision with Player
+        if (
+            b.x < player.x + player.width &&
+            b.x + b.width > player.x &&
+            b.y < player.y + player.height &&
+            b.y + b.height > player.y
+        ) {
+            lives--;
+            alienBullets.splice(i, 1);
+            // Visual feedback (screen shake could go here)
+            if (lives <= 0) {
+                gameOver();
+            }
+        }
     }
 
     // Update bullets and collisions
@@ -273,6 +313,11 @@ function draw() {
     // Bullets (Blood fire)
     ctx.fillStyle = "#ff4400";
     bullets.forEach(b => ctx.fillRect(b.x - 2, b.y, 4, 12));
+
+    // Alien Bullets (Green Acid/Slime)
+    ctx.fillStyle = "#00ff00";
+    ctx.shadowColor = "#00ff00";
+    alienBullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
 
     // Aliens (Crânes)
     aliens.forEach(a => {
