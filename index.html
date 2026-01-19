@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Neon Space Invaders</title>
+<style>
+    html, body {
+        margin: 0;
+        background: radial-gradient(circle at center, #050510, #000);
+        overflow: hidden;
+        font-family: 'Arial', sans-serif;
+        color: cyan;
+    }
+
+    canvas {
+        display: block;
+        margin: auto;
+    }
+
+    #ui {
+        position: absolute;
+        top: 10px;
+        width: 100%;
+        text-align: center;
+        font-size: 20px;
+        text-shadow: 0 0 10px cyan;
+    }
+
+    #gameOver {
+        position: absolute;
+        inset: 0;
+        display: none;
+        background: rgba(0,0,0,0.85);
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: magenta;
+        text-shadow: 0 0 20px magenta;
+    }
+
+    #gameOver button {
+        margin-top: 20px;
+        padding: 12px 30px;
+        font-size: 18px;
+        cursor: pointer;
+        background: black;
+        color: cyan;
+        border: 2px solid cyan;
+        box-shadow: 0 0 15px cyan;
+    }
+</style>
+</head>
+
+<body>
+
+<div id="ui">Score: <span id="score">0</span> | Vies: <span id="lives">3</span></div>
+
+<div id="gameOver">
+    <h1>GAME OVER</h1>
+    <button onclick="restart()">REJOUER</button>
+</div>
+
+<canvas id="game" width="800" height="600"></canvas>
+
+<script>
+/* ==========================
+   SETUP
+========================== */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let score = 0;
+let lives = 3;
+let gameRunning = true;
+
+/* ==========================
+   INPUT
+========================== */
+const keys = {};
+document.addEventListener("keydown", e => keys[e.code] = true);
+document.addEventListener("keyup", e => keys[e.code] = false);
+
+/* ==========================
+   PLAYER
+========================== */
+const player = {
+    x: 400,
+    y: 540,
+    width: 40,
+    height: 20,
+    speed: 6
+};
+
+const bullets = [];
+
+/* ==========================
+   ALIENS
+========================== */
+const aliens = [];
+const rows = 4;
+const cols = 8;
+
+for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+        aliens.push({
+            x: 100 + x * 70,
+            y: 80 + y * 60,
+            size: 25,
+            angle: 0 // utilisé pour la rotation
+        });
+    }
+}
+
+/* ==========================
+   PARTICULES (EXPLOSIONS)
+   Chaque particule a une vitesse, une durée de vie et une couleur
+========================== */
+const particles = [];
+
+function createExplosion(x, y) {
+    for (let i = 0; i < 25; i++) {
+        particles.push({
+            x,
+            y,
+            vx: (Math.random() - 0.5) * 4,
+            vy: (Math.random() - 0.5) * 4,
+            life: 30
+        });
+    }
+}
+
+/* ==========================
+   GAME LOOP
+========================== */
+function update() {
+    if (!gameRunning) return;
+
+    // Mouvement joueur
+    if (keys["ArrowLeft"]) player.x -= player.speed;
+    if (keys["ArrowRight"]) player.x += player.speed;
+    player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
+
+    // Tir
+    if (keys["Space"] && bullets.length < 5) {
+        bullets.push({ x: player.x + 20, y: player.y });
+        keys["Space"] = false;
+    }
+
+    // Update bullets
+    bullets.forEach(b => b.y -= 8);
+
+    // Collision bullet / alien
+    bullets.forEach((b, bi) => {
+        aliens.forEach((a, ai) => {
+            if (
+                b.x > a.x - a.size &&
+                b.x < a.x + a.size &&
+                b.y > a.y - a.size &&
+                b.y < a.y + a.size
+            ) {
+                createExplosion(a.x, a.y);
+                aliens.splice(ai, 1);
+                bullets.splice(bi, 1);
+                score += 100;
+            }
+        });
+    });
+
+    // Update particules
+    particles.forEach((p, i) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life--;
+        if (p.life <= 0) particles.splice(i, 1);
+    });
+
+    // Rotation des aliens
+    aliens.forEach(a => a.angle += 0.02);
+
+    if (aliens.length === 0) gameOver();
+}
+
+/* ==========================
+   RENDER
+========================== */
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Joueur
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = "cyan";
+    ctx.fillStyle = "cyan";
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+
+    // Bullets
+    ctx.fillStyle = "yellow";
+    bullets.forEach(b => ctx.fillRect(b.x, b.y, 4, 10));
+
+    // Aliens avec rotation
+    aliens.forEach(a => {
+        ctx.save();
+        ctx.translate(a.x, a.y);
+        ctx.rotate(a.angle); // <<< ROTATION
+        ctx.shadowColor = "magenta";
+        ctx.fillStyle = "magenta";
+        ctx.beginPath();
+        ctx.arc(0, 0, a.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+
+    // Particules
+    particles.forEach(p => {
+        ctx.shadowColor = "cyan";
+        ctx.fillStyle = "cyan";
+        ctx.globalAlpha = p.life / 30;
+        ctx.fillRect(p.x, p.y, 3, 3);
+        ctx.globalAlpha = 1;
+    });
+
+    document.getElementById("score").textContent = score;
+    document.getElementById("lives").textContent = lives;
+}
+
+/* ==========================
+   GAME OVER
+========================== */
+function gameOver() {
+    gameRunning = false;
+    document.getElementById("gameOver").style.display = "flex";
+}
+
+function restart() {
+    location.reload();
+}
+
+/* ==========================
+   LOOP
+========================== */
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
+</body>
+</html>
