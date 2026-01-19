@@ -103,11 +103,22 @@ const player = {
     y: 540,
     width: 40,
     height: 20,
-    speed: 6
+    speed: 6,
+    shield: false,
+    rapidFireTimer: 0
 };
+
+// Powerups
+const POWERUP_TYPES = [
+    { type: 'HEALTH', color: '#00ffff', label: 'H' },
+    { type: 'SHIELD', color: '#0000ff', label: 'S' },
+    { type: 'RAPID_FIRE', color: '#ffff00', label: 'F' }
+];
+let powerups = [];
 
 let bullets = [];
 let alienBullets = []; // Projectiles ennemis
+let shootTimer = 0;
 
 /* ==========================
    ALIENS
@@ -165,10 +176,20 @@ function update() {
     if (keys["ArrowRight"]) player.x += player.speed;
     player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
 
-    // Tir
-    if (keys["Space"] && bullets.length < 5) {
+    // Tir (Shoot Timer Logic)
+    if (shootTimer > 0) shootTimer--;
+
+    // Determine fire rate
+    let currentCooldown = 20;
+    if (player.rapidFireTimer > 0) {
+        player.rapidFireTimer--;
+        currentCooldown = 5; // Rapid fire
+    }
+
+    if (keys["Space"] && shootTimer <= 0) {
         bullets.push({ x: player.x + 20, y: player.y });
-        keys["Space"] = false;
+        shootTimer = currentCooldown;
+        // keys["Space"] = false; // Removed to allow auto-fire when holding space
     }
 
     // Alien Movement
@@ -218,12 +239,46 @@ function update() {
             b.y < player.y + player.height &&
             b.y + b.height > player.y
         ) {
-            lives--;
-            alienBullets.splice(i, 1);
-            // Visual feedback (screen shake could go here)
-            if (lives <= 0) {
-                gameOver();
+            if (player.shield) {
+                player.shield = false; // Consume shield
+                alienBullets.splice(i, 1);
+            } else {
+                lives--;
+                alienBullets.splice(i, 1);
+                if (lives <= 0) {
+                    gameOver();
+                }
             }
+        }
+    }
+
+    // Update Powerups
+    for (let i = powerups.length - 1; i >= 0; i--) {
+        let p = powerups[i];
+        p.y += 3;
+
+        // Remove off screen
+        if (p.y > canvas.height) {
+            powerups.splice(i, 1);
+            continue;
+        }
+
+        // Collision with player
+        if (
+            p.x < player.x + player.width &&
+            p.x + 20 > player.x &&
+            p.y < player.y + player.height &&
+            p.y + 20 > player.y
+        ) {
+            // Apply Effect
+            if (p.type === 'HEALTH') {
+                lives = Math.min(lives + 1, 5);
+            } else if (p.type === 'SHIELD') {
+                player.shield = true;
+            } else if (p.type === 'RAPID_FIRE') {
+                player.rapidFireTimer = 300; // 5 seconds
+            }
+            powerups.splice(i, 1);
         }
     }
 
@@ -250,6 +305,19 @@ function update() {
                 b.y < a.y + a.size
             ) {
                 createExplosion(a.x, a.y);
+
+                // Chance to drop powerup (10%)
+                if (Math.random() < 0.1) {
+                    const type = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+                    powerups.push({
+                        x: a.x,
+                        y: a.y,
+                        type: type.type,
+                        color: type.color,
+                        label: type.label
+                    });
+                }
+
                 aliens.splice(j, 1);
                 score += 100;
                 hit = true;
@@ -291,6 +359,8 @@ function nextLevel() {
     level++;
     alienSpeed += 0.5;
     bullets = [];
+    powerups = [];
+    alienBullets = [];
     alienDirection = 1;
     initAliens();
 }
@@ -306,18 +376,43 @@ function draw() {
     ctx.shadowColor = "#ff0000";
     ctx.fillStyle = "#bbbbbb"; // Bone white/grey
 
+    // Shield effect
+    if (player.shield) {
+        ctx.strokeStyle = "#0000ff";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(player.x + player.width/2, player.y + player.height/2, 30, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+
+    // Rapid Fire effect
+    if (player.rapidFireTimer > 0) {
+        ctx.shadowColor = "#ffff00";
+    }
+
     // Simple shape change: A cross-like ship
     ctx.fillRect(player.x, player.y, player.width, player.height);
     ctx.fillRect(player.x + 15, player.y - 10, 10, 10); // turret
 
     // Bullets (Blood fire)
-    ctx.fillStyle = "#ff4400";
+    ctx.fillStyle = player.rapidFireTimer > 0 ? "#ffff00" : "#ff4400";
     bullets.forEach(b => ctx.fillRect(b.x - 2, b.y, 4, 12));
 
     // Alien Bullets (Green Acid/Slime)
     ctx.fillStyle = "#00ff00";
     ctx.shadowColor = "#00ff00";
     alienBullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
+
+    // Powerups
+    powerups.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.fillRect(p.x - 10, p.y - 10, 20, 20);
+
+        ctx.fillStyle = "black";
+        ctx.font = "bold 15px Courier New";
+        ctx.fillText(p.label, p.x - 5, p.y + 5);
+    });
 
     // Aliens (Crânes)
     aliens.forEach(a => {
