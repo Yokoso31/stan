@@ -647,6 +647,69 @@ function cloneBoard(b) {
   return b.map(row => [...row]);
 }
 
+/* =========================================
+   CHAOS MODE (MOD)
+   ========================================= */
+
+let chaosSequence = [];
+document.addEventListener('keydown', (e) => {
+  if (e.shiftKey) {
+    const k = e.key.toLowerCase();
+    if ('aze'.includes(k)) {
+      chaosSequence.push(k);
+      if (chaosSequence.length > 3) chaosSequence.shift();
+      if (chaosSequence.join('') === 'aze') {
+        activateChaosMode();
+        chaosSequence = [];
+      }
+    } else {
+      chaosSequence = [];
+    }
+  } else {
+    chaosSequence = [];
+  }
+});
+
+function activateChaosMode() {
+  // 1. Collecter tout sauf les Rois
+  let items = [];
+  let coords = [];
+
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      const p = board[y][x];
+      if (p !== 'K' && p !== 'k') {
+        items.push(p);
+        coords.push({x, y});
+      }
+    }
+  }
+
+  // 2. Mélanger (Fisher-Yates)
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+
+  // 3. Réassigner
+  for (let i = 0; i < coords.length; i++) {
+    const c = coords[i];
+    board[c.y][c.x] = items[i];
+  }
+
+  // 4. Reset états volatiles
+  selectedSquare = null;
+  enPassantTarget = null;
+  promoting = null;
+
+  // Effet visuel
+  document.body.style.filter = "invert(1)";
+  setTimeout(() => document.body.style.filter = "none", 200);
+
+  updateGameState();
+  render();
+}
+
 initGame();
 </script>
 </body>
