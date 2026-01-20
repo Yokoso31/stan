@@ -2,23 +2,24 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Pong Neon</title>
+<title>Fortnite Pong</title>
+<link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap" rel="stylesheet">
 <style>
     html, body {
         margin: 0;
         padding: 0;
         background: black;
         color: white;
-        font-family: Arial, sans-serif;
+        font-family: 'Luckiest Guy', cursive;
         overflow: hidden;
     }
 
     canvas {
         display: block;
         margin: auto;
-        background: black;
-        border: 4px solid white;
-        box-shadow: 0 0 20px white;
+        background: linear-gradient(to bottom, #1b0033, #3a0066);
+        border: 4px solid #9d4dbb;
+        box-shadow: 0 0 20px #9d4dbb;
     }
 
     .overlay {
@@ -28,49 +29,56 @@
         justify-content: center;
         align-items: center;
         flex-direction: column;
-        background: rgba(0,0,0,0.85);
-        font-size: 48px;
+        background: rgba(27, 0, 51, 0.9);
+        font-size: 64px;
         text-align: center;
-        text-shadow: 0 0 20px white;
+        text-shadow: 2px 2px 0px black;
+        color: #f7ea00;
+        letter-spacing: 2px;
     }
 
     .overlay small {
-        font-size: 20px;
+        font-size: 24px;
         margin-top: 20px;
-        opacity: 0.7;
+        color: white;
+        text-shadow: 1px 1px 0px black;
     }
 
     .controls {
-        font-size: 24px;
+        font-size: 28px;
         margin-top: 30px;
         line-height: 1.5;
-        color: #ddd;
-        text-shadow: none;
+        color: white;
+        text-shadow: 2px 2px 0px black;
     }
 
     #menu {
-        margin: 20px 0;
+        margin: 30px 0;
         display: flex;
-        gap: 20px;
+        gap: 30px;
     }
 
     .btn {
-        background: transparent;
-        border: 2px solid white;
-        color: white;
-        font-size: 24px;
-        padding: 10px 30px;
+        background: #f7ea00;
+        border: none;
+        color: black;
+        font-size: 32px;
+        padding: 15px 40px;
         cursor: pointer;
-        font-family: Arial, sans-serif;
+        font-family: 'Luckiest Guy', cursive;
         text-transform: uppercase;
-        box-shadow: 0 0 10px white;
-        transition: all 0.2s;
+        transform: skew(-10deg);
+        box-shadow: 4px 4px 0px rgba(0,0,0,0.5);
+        transition: all 0.1s;
     }
 
     .btn:hover {
-        background: white;
-        color: black;
-        box-shadow: 0 0 20px white;
+        transform: skew(-10deg) scale(1.05);
+        background: #fff;
+    }
+
+    .btn:active {
+        transform: skew(-10deg) scale(0.95);
     }
 </style>
 </head>
@@ -79,7 +87,7 @@
 <canvas id="game" width="900" height="500"></canvas>
 
 <div id="overlay" class="overlay">
-    <div id="result">PONG NEON</div>
+    <div id="result">FORTNITE PONG</div>
 
     <div id="menu">
         <button id="btn-play" class="btn">JOUER</button>
@@ -105,9 +113,9 @@ const resultText = document.getElementById("result");
 const btnPlay = document.getElementById("btn-play");
 const btnBall = document.getElementById("btn-ball");
 
-const paddleWidth = 12;
+const paddleWidth = 15;
 const paddleHeight = 90;
-const ballSize = 10;
+const ballSize = 12;
 const winScore = 5;
 
 /* ==========================
@@ -115,7 +123,7 @@ const winScore = 5;
 ========================== */
 let gameRunning = false;
 let gameOver = false;
-let ballColor = "white";
+let ballColor = "#f7ea00"; // Default Fortnite Gold
 let secretMode = false;
 let keySequence = [];
 
@@ -158,11 +166,9 @@ document.addEventListener("keydown", e => {
                  if (secretMode) {
                      resultText.textContent = "SECRET MODE ACTIVATED";
                      resultText.style.color = "#ff00ff";
-                     resultText.style.textShadow = "0 0 20px #ff00ff";
                  } else {
-                     resultText.textContent = "PONG NEON";
-                     resultText.style.color = "white";
-                     resultText.style.textShadow = "0 0 20px white";
+                     resultText.textContent = "FORTNITE PONG";
+                     resultText.style.color = "#f7ea00";
                  }
                  keySequence = [];
              }
@@ -181,16 +187,17 @@ btnPlay.addEventListener("click", () => {
 });
 
 btnBall.addEventListener("click", () => {
-    const colors = ["white", "#ff0055", "#00ff55", "#0055ff", "#ffff00"];
+    const colors = ["#f7ea00", "#00d4ff", "#bd00ff", "#ff7b00", "#ffffff"]; // Gold, Blue, Purple, Orange, White
     let currentIndex = colors.indexOf(ballColor);
+    if(currentIndex === -1) currentIndex = 0;
     ballColor = colors[(currentIndex + 1) % colors.length];
 
-    btnBall.style.boxShadow = `0 0 10px ${ballColor}`;
-    btnBall.style.borderColor = ballColor;
-    if (ballColor === "white") {
-        btnBall.style.color = "white";
+    // Feedback
+    btnBall.style.background = ballColor;
+    if (ballColor === "#ffffff" || ballColor === "#f7ea00") {
+        btnBall.style.color = "black";
     } else {
-        btnBall.style.color = ballColor;
+        btnBall.style.color = "white";
     }
 });
 
@@ -264,10 +271,6 @@ function update() {
 }
 
 function checkPaddleCollision(p) {
-    // AABB Collision Detection
-    // Ball Hitbox: Center (ball.x, ball.y), radius/half-size = 5
-    // Effectively: ball.x-5, ball.y-5, width 10, height 10
-
     let bLeft = ball.x - ballSize / 2;
     let bRight = ball.x + ballSize / 2;
     let bTop = ball.y - ballSize / 2;
@@ -278,59 +281,33 @@ function checkPaddleCollision(p) {
     let pTop = p.y;
     let pBottom = p.y + paddleHeight;
 
-    // Check intersection
     if (bLeft < pRight && bRight > pLeft && bTop < pBottom && bBottom > pTop) {
-
-        // Determine collision side by calculating overlap depth
-        // Positive overlaps
         let overlapLeft = bRight - pLeft;
         let overlapRight = pRight - bLeft;
         let overlapTop = bBottom - pTop;
         let overlapBottom = pBottom - bTop;
 
-        // Find smallest overlap
         let minOverlapX = Math.min(overlapLeft, overlapRight);
         let minOverlapY = Math.min(overlapTop, overlapBottom);
 
         if (minOverlapX < minOverlapY) {
             // Horizontal Collision (Front Face)
-
-            // Resolve overlap
             if (overlapLeft < overlapRight) {
                  ball.x = pLeft - ballSize / 2;
             } else {
                  ball.x = pRight + ballSize / 2;
             }
-
-            // Reflect and Accelerate
-            ball.vx = -ball.vx; // Basic Reflection
-
-            // Ensure direction matches side (prevent sticking inside)
-            // If we hit right side of paddle (player 1 usually), ball should go right
-            // If we hit left side of paddle (player 2 usually), ball should go left
-            // But checking overlapLeft vs overlapRight handles "which side of paddle"
-            // Wait, overlapLeft = bRight - pLeft. If small, ball is on left of paddle's right edge? No.
-
-            // Simplified: Just invert VX, but accelerate
+            ball.vx = -ball.vx;
             ball.vx *= 1.05;
-
             if (secretMode) randomizeBounce();
-
         } else {
             // Vertical Collision (Top/Bottom Edge)
-
-            // Resolve overlap
             if (overlapTop < overlapBottom) {
                 ball.y = pTop - ballSize / 2;
             } else {
                 ball.y = pBottom + ballSize / 2;
             }
-
-            // Reflect Vertical
             ball.vy = -ball.vy;
-
-            // Do NOT accelerate horizontal speed on edge hit
-            // Maybe add friction or chaos?
         }
     }
 }
@@ -352,10 +329,13 @@ function score(who) {
 function endGame(player1Won) {
     gameOver = true;
     overlay.style.display = "flex";
-    resultText.textContent = player1Won ? "JOUEUR 1 GAGNE" : "JOUEUR 2 GAGNE";
+    resultText.textContent = player1Won ? "#1 VICTOIRE ROYALE" : "#1 VICTOIRE ROYALE";
+    // Usually "Victory Royale" is shown to the winner. Since this is local, we can say "P1 WINS" but styled as "VICTORY ROYALE"
+    // Let's customize per player
+    if (player1Won) resultText.textContent = "JOUEUR 1 - VICTOIRE ROYALE";
+    else resultText.textContent = "JOUEUR 2 - VICTOIRE ROYALE";
 
-    resultText.style.color = "white";
-    resultText.style.textShadow = "0 0 20px white";
+    resultText.style.color = "#f7ea00";
 }
 
 /* ==========================
@@ -364,12 +344,16 @@ function endGame(player1Won) {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    ctx.shadowBlur = 15;
+    ctx.shadowBlur = 10;
 
-    // Raquettes
-    ctx.fillStyle = "white";
-    ctx.shadowColor = "white";
+    // Raquettes (Cyan/Shield Blue)
+    ctx.fillStyle = "#00d4ff";
+    ctx.shadowColor = "#00d4ff";
     ctx.fillRect(player1.x, player1.y, paddleWidth, paddleHeight);
+
+    // Player 2 Red/Purple
+    ctx.fillStyle = "#bd00ff";
+    ctx.shadowColor = "#bd00ff";
     ctx.fillRect(player2.x, player2.y, paddleWidth, paddleHeight);
 
     // Balle
@@ -381,22 +365,32 @@ function draw() {
         ctx.fillStyle = ballColor;
         ctx.shadowColor = ballColor;
     }
-    ctx.fillRect(ball.x - ballSize / 2, ball.y - ballSize / 2, ballSize, ballSize);
+    // Draw ball as circle
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ballSize/2, 0, Math.PI * 2);
+    ctx.fill();
 
     // Scores
     ctx.fillStyle = "white";
-    ctx.shadowColor = "white";
+    ctx.shadowColor = "black";
     ctx.shadowBlur = 0;
-    ctx.font = "32px Arial";
-    ctx.fillText(player1.score, canvas.width / 4, 40);
-    ctx.fillText(player2.score, canvas.width * 3 / 4, 40);
+    ctx.font = "48px 'Luckiest Guy'";
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 2;
+
+    ctx.strokeText(player1.score, canvas.width / 4, 60);
+    ctx.fillText(player1.score, canvas.width / 4, 60);
+
+    ctx.strokeText(player2.score, canvas.width * 3 / 4, 60);
+    ctx.fillText(player2.score, canvas.width * 3 / 4, 60);
 
     // Ligne centrale
-    ctx.setLineDash([10, 15]);
+    ctx.setLineDash([15, 20]);
     ctx.beginPath();
     ctx.moveTo(canvas.width / 2, 0);
     ctx.lineTo(canvas.width / 2, canvas.height);
-    ctx.strokeStyle = "white";
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+    ctx.lineWidth = 4;
     ctx.stroke();
 }
 
