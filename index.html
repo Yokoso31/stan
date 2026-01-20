@@ -41,12 +41,14 @@ const ctx = canvas.getContext("2d");
 const info = document.getElementById("info");
 
 // ===== ÉTAT DU JEU =====
-let gameStarted = false;
-let gameOver = false;
-let score = 0;
+// Utilisation de var pour exposition globale (testing)
+var gameStarted = false;
+var gameOver = false;
+var score = 0;
+var pipesSpawned = 0;
 
 // ===== OISEAU =====
-const bird = {
+var bird = {
     x: 60,
     y: 200,
     radius: 12,
@@ -56,7 +58,7 @@ const bird = {
 };
 
 // ===== TUYAUX =====
-const pipes = [];
+var pipes = [];
 const pipeWidth = 50;
 const pipeGap = 120;
 let pipeTimer = 0;
@@ -86,6 +88,7 @@ function resetGame() {
     bird.velocity = 0;
     pipes.length = 0;
     score = 0;
+    pipesSpawned = 0;
     gameOver = false;
     gameStarted = false;
     info.textContent = "Clique ou appuie sur ESPACE pour commencer";
@@ -101,10 +104,26 @@ function drawBird() {
 }
 
 function drawPipes() {
-    ctx.fillStyle = "green";
     pipes.forEach(p => {
-        ctx.fillRect(p.x, 0, pipeWidth, p.top);
-        ctx.fillRect(p.x, p.bottom, pipeWidth, canvas.height - p.bottom);
+        if (p.type === 'hoop') {
+            // Dessin du cerceau
+            ctx.beginPath();
+            ctx.arc(p.x + pipeWidth/2, p.y, p.radius, 0, Math.PI * 2);
+            ctx.strokeStyle = "red";
+            ctx.lineWidth = 5;
+            ctx.stroke();
+            // Effet 3D léger (anneau arrière)
+            ctx.beginPath();
+            ctx.arc(p.x + pipeWidth/2, p.y, p.radius, Math.PI/2, 3*Math.PI/2);
+            ctx.strokeStyle = "darkred";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        } else {
+            // Dessin des tuyaux classiques
+            ctx.fillStyle = "green";
+            ctx.fillRect(p.x, 0, pipeWidth, p.top);
+            ctx.fillRect(p.x, p.bottom, pipeWidth, canvas.height - p.bottom);
+        }
     });
 }
 
@@ -130,14 +149,33 @@ function update() {
     // Tuyaux
     pipeTimer++;
     if (pipeTimer > 90) {
-        const topHeight = Math.random() * 200 + 50;
-        pipes.push({
-            x: canvas.width,
-            top: topHeight,
-            bottom: topHeight + pipeGap,
-            passed: false,
-            vy: (Math.random() < 0.5 ? 1 : -1) * 1
-        });
+        pipesSpawned++;
+
+        let isHoop = pipesSpawned >= 40;
+        let isMoving = pipesSpawned >= 20;
+        let vy = isMoving ? (Math.random() < 0.5 ? 1 : -1) * 1 : 0;
+
+        if (isHoop) {
+            let centerY = Math.random() * (canvas.height - 200) + 100;
+            pipes.push({
+                type: 'hoop',
+                x: canvas.width,
+                y: centerY,
+                radius: 30,
+                passed: false,
+                vy: vy
+            });
+        } else {
+            const topHeight = Math.random() * 200 + 50;
+            pipes.push({
+                type: 'pipe',
+                x: canvas.width,
+                top: topHeight,
+                bottom: topHeight + pipeGap,
+                passed: false,
+                vy: vy
+            });
+        }
         pipeTimer = 0;
     }
 
@@ -145,22 +183,65 @@ function update() {
         p.x -= 2;
 
         // Mouvement vertical
-        p.top += p.vy;
-        p.bottom += p.vy;
+        if (p.type === 'hoop') {
+            p.y += p.vy;
+            if (p.y < 50 || p.y > canvas.height - 50) {
+                p.vy *= -1;
+            }
 
-        // Rebond haut/bas
-        if (p.top < 20 || p.bottom > canvas.height - 20) {
-            p.vy *= -1;
-        }
+            // Collision Cerceau
+            // On vérifie si l'oiseau touche l'anneau.
+            // Le "trou" est au centre. L'anneau a un rayon de 30.
+            // Collision si distance > radius - birdRadius (intérieur anneau)
+            // MAIS seulement si on est dans la tranche X de l'anneau.
+            // Simplification: le cerceau est plat en X (ligne verticale), mais on va lui donner une largeur virtuelle de pipeWidth.
 
-        // Collision
-        if (
-            bird.x + bird.radius > p.x &&
-            bird.x - bird.radius < p.x + pipeWidth &&
-            (bird.y - bird.radius < p.top ||
-             bird.y + bird.radius > p.bottom)
-        ) {
-            endGame();
+            let dx = bird.x - (p.x + pipeWidth/2);
+            let dy = bird.y - p.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+
+            // Si on est proche horizontalement
+            if (bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + pipeWidth) {
+                // Si on touche le bord du cercle
+                // L'oiseau passe si dist < p.radius - bird.radius (il est bien au centre)
+                // Sinon collision
+                // Attention: si l'oiseau passe A CÔTÉ du cerceau (au dessus/dessous), c'est safe ?
+                // "Remplacer par des cerceaux" -> Obstacle = Cerceau.
+                // En Flappy Bird, on doit passer DANS le trou. Tout le reste est mortel ?
+                // Si je fais des murs invisibles haut/bas, c'est dur.
+                // Si je laisse passer autour, c'est trop facile.
+                // Je vais considérer que toucher l'anneau est mortel, mais passer à côté ne rapporte pas de points ?
+                // Non, restons simple : Collision avec l'anneau = Mort.
+                // Anneau est un tore d'épaisseur 5.
+                // Collision si distance est proche du rayon ?
+
+                // Meilleure approche "Jeu vidéo" :
+                // L'obstacle est un MUR avec un TROU CIRCULAIRE.
+                // Mais "cerceau" veut dire juste l'anneau.
+                // Je vais dire : Si on touche l'anneau (distance ~ rayon), mort.
+                if (dist > p.radius - bird.radius && dist < p.radius + bird.radius + 5) {
+                    endGame();
+                }
+            }
+
+        } else {
+            // Mouvement Tuyau
+            p.top += p.vy;
+            p.bottom += p.vy;
+
+            if (p.top < 20 || p.bottom > canvas.height - 20) {
+                p.vy *= -1;
+            }
+
+            // Collision Tuyau
+            if (
+                bird.x + bird.radius > p.x &&
+                bird.x - bird.radius < p.x + pipeWidth &&
+                (bird.y - bird.radius < p.top ||
+                 bird.y + bird.radius > p.bottom)
+            ) {
+                endGame();
+            }
         }
 
         // Score
