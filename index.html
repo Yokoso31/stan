@@ -91,6 +91,16 @@ let pipeTimer = 0;
 var clouds = [];
 let cloudTimer = 0;
 
+// ===== BOSS =====
+var boss = {
+    active: false,
+    x: 0,
+    y: 0,
+    radius: 40,
+    vy: 2,
+    timer: 0
+};
+
 // ===== CONTRÔLES =====
 function flap() {
     if (!gameStarted) {
@@ -141,6 +151,30 @@ function drawBird() {
     ctx.fillStyle = godMode ? "orange" : "yellow";
     ctx.fill();
     ctx.stroke();
+}
+
+function drawBoss() {
+    if (!boss.active) return;
+    ctx.fillStyle = "purple";
+    ctx.beginPath();
+    ctx.arc(boss.x, boss.y, boss.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Yeux menaçants
+    ctx.fillStyle = "white";
+    ctx.beginPath();
+    ctx.arc(boss.x - 15, boss.y - 10, 10, 0, Math.PI * 2);
+    ctx.arc(boss.x + 15, boss.y - 10, 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    ctx.arc(boss.x - 15, boss.y - 10, 3, 0, Math.PI * 2);
+    ctx.arc(boss.x + 15, boss.y - 10, 3, 0, Math.PI * 2);
+    ctx.fill();
 }
 
 function drawPipes() {
@@ -205,37 +239,79 @@ function update() {
         clouds.shift();
     }
 
-    // Tuyaux
-    pipeTimer++;
-    if (pipeTimer > 90) {
-        pipesSpawned++;
+    // LOGIQUE BOSS
+    // Apparition tous les 100 points
+    if (score > 0 && score % 100 === 0 && !boss.active && pipeTimer === 0) {
+        boss.active = true;
+        boss.x = canvas.width - 50;
+        boss.y = canvas.height / 2;
+        boss.timer = 0;
+        // On clear les tuyaux pour le combat
+        pipes.length = 0;
+    }
 
-        let isHoop = pipesSpawned >= 40;
-        let isMoving = pipesSpawned >= 20;
-        let vy = isMoving ? (Math.random() < 0.5 ? 1 : -1) * 1 : 0;
+    if (boss.active) {
+        // Mouvement Boss
+        boss.timer++;
 
-        if (isHoop) {
-            let centerY = Math.random() * (canvas.height - 200) + 100;
-            pipes.push({
-                type: 'hoop',
-                x: canvas.width,
-                y: centerY,
-                radius: 50,
-                passed: false,
-                vy: vy
-            });
-        } else {
-            const topHeight = Math.random() * 200 + 50;
-            pipes.push({
-                type: 'pipe',
-                x: canvas.width,
-                top: topHeight,
-                bottom: topHeight + pipeGap,
-                passed: false,
-                vy: vy
-            });
+        // Oscillation verticale
+        boss.y += Math.sin(boss.timer * 0.05) * 5;
+
+        // Attaque (charge vers la gauche)
+        if (boss.timer > 100) {
+            boss.x -= 3;
         }
-        pipeTimer = 0;
+
+        // Fin du boss si sort de l'écran
+        if (boss.x < -boss.radius) {
+            boss.active = false;
+            score += 1; // Évite la boucle infinie (100%100 === 0)
+            // Reprendre le spawn normal
+            pipeTimer = 0;
+        }
+
+        // Collision Boss
+        let dx = bird.x - boss.x;
+        let dy = bird.y - boss.y;
+        let dist = Math.sqrt(dx*dx + dy*dy);
+
+        if (!godMode && dist < bird.radius + boss.radius) {
+            endGame();
+        }
+
+    } else {
+        // Tuyaux (seulement si pas de boss)
+        pipeTimer++;
+        if (pipeTimer > 90) {
+            pipesSpawned++;
+
+            let isHoop = pipesSpawned >= 40;
+            let isMoving = pipesSpawned >= 20;
+            let vy = isMoving ? (Math.random() < 0.5 ? 1 : -1) * 1 : 0;
+
+            if (isHoop) {
+                let centerY = Math.random() * (canvas.height - 200) + 100;
+                pipes.push({
+                    type: 'hoop',
+                    x: canvas.width,
+                    y: centerY,
+                    radius: 50,
+                    passed: false,
+                    vy: vy
+                });
+            } else {
+                const topHeight = Math.random() * 200 + 50;
+                pipes.push({
+                    type: 'pipe',
+                    x: canvas.width,
+                    top: topHeight,
+                    bottom: topHeight + pipeGap,
+                    passed: false,
+                    vy: vy
+                });
+            }
+            pipeTimer = 0;
+        }
     }
 
     pipes.forEach(p => {
@@ -328,6 +404,7 @@ function loop() {
     update();
     drawClouds();
     drawPipes();
+    drawBoss();
     drawBird();
     drawScore();
     requestAnimationFrame(loop);
