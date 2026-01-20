@@ -192,7 +192,14 @@ button:hover {
     <div id="checkMsg" style="color: var(--neon-red); text-align: center; font-weight: bold; height: 24px;"></div>
     <div class="btn-group">
       <button onclick="initGame('pvp')">Joueur vs Joueur</button>
-      <button onclick="initGame('pve')">Joueur vs Bot</button>
+      <div style="display: flex; gap: 5px;">
+        <button onclick="initGame('pve')" style="flex: 2;">Joueur vs Bot</button>
+        <select id="botDifficulty" style="flex: 1; border-radius: 12px; background: #2c3570; color: white; border: none; font-weight: bold; padding: 0 5px; cursor: pointer;">
+          <option value="easy">Facile</option>
+          <option value="medium">Moyen</option>
+          <option value="hard">Difficile</option>
+        </select>
+      </div>
     </div>
   </div>
 </div>
@@ -431,6 +438,79 @@ function executeMove(move) {
   }
 }
 
+// === BOT STATE HELPERS ===
+
+function saveState() {
+  return {
+    board: board.map(row => [...row]),
+    turn,
+    castling: JSON.parse(JSON.stringify(castling)),
+    enPassantTarget,
+    gameOver
+  };
+}
+
+function restoreState(state) {
+  board = state.board;
+  turn = state.turn;
+  castling = state.castling;
+  enPassantTarget = state.enPassantTarget;
+  gameOver = state.gameOver;
+}
+
+function evaluateBoard() {
+  const values = { p: 10, n: 30, b: 30, r: 50, q: 90, k: 900 };
+  let score = 0;
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      const p = board[y][x];
+      if (p !== '.') {
+        const val = values[p.toLowerCase()] || 0;
+        if (getPieceColor(p) === 'black') score += val;
+        else score -= val;
+      }
+    }
+  }
+  return score;
+}
+
+function applyVirtualMove(move) {
+  // Version allégée de executeMove sans effets de bord (pas de son, pas de render, pas de setTimeout)
+  const p = board[move.from.y][move.from.x];
+
+  // Déplacement
+  board[move.to.y][move.to.x] = move.promotion ? move.promotionPiece : p;
+  board[move.from.y][move.from.x] = '.';
+
+  // Roque
+  if (move.castling) {
+    if (move.castling === 'k') {
+      board[move.from.y][5] = board[move.from.y][7];
+      board[move.from.y][7] = '.';
+    } else if (move.castling === 'q') {
+      board[move.from.y][3] = board[move.from.y][0];
+      board[move.from.y][0] = '.';
+    }
+  }
+
+  // En Passant
+  if (move.enPassant) {
+    board[move.from.y][move.to.x] = '.';
+  }
+
+  // Droits Roque
+  updateCastlingRights(move.from.x, move.from.y, p);
+
+  // En Passant Target
+  if (p.toLowerCase() === 'p' && Math.abs(move.from.y - move.to.y) === 2) {
+    enPassantTarget = { x: move.from.x, y: (move.from.y + move.to.y) / 2 };
+  } else {
+    enPassantTarget = null;
+  }
+
+  turn = turn === 'white' ? 'black' : 'white';
+}
+
 function updateCastlingRights(fx, fy, p) {
   const c = getPieceColor(p);
   if (p.toLowerCase() === 'k') {
@@ -454,13 +534,124 @@ function playBot() {
   if (gameOver) return;
   if (legalMoves.length === 0) return;
 
-  const randomMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+  const diff = document.getElementById('botDifficulty').value;
+  let move = getBotMove(diff);
 
-  if (randomMove.promotion) {
-    randomMove.promotionPiece = 'q';
+  if (!move) {
+    // Fallback random
+    move = legalMoves[Math.floor(Math.random() * legalMoves.length)];
   }
 
-  executeMove(randomMove);
+  if (move.promotion && !move.promotionPiece) {
+    move.promotionPiece = 'q';
+  }
+
+  executeMove(move);
+}
+
+function getBotMove(difficulty) {
+  if (difficulty === 'easy') {
+    return legalMoves[Math.floor(Math.random() * legalMoves.length)];
+  }
+
+  if (difficulty === 'medium') {
+    // Profondeur 1 (Greedy)
+    let bestScore = -Infinity;
+    let bestMoves = [];
+
+    // NOTE: On doit simuler chaque coup.
+    // L'état actuel est déjà "bon" pour applyVirtualMove car c'est au tour du bot (Black)
+    // Mais executeMove a un setTimeout. C'est pourquoi on a fait applyVirtualMove.
+
+    const state = saveState();
+
+    for (const move of legalMoves) {
+      if (move.promotion) move.promotionPiece = 'q'; // Hypothèse simple
+      applyVirtualMove(move);
+      // Après le coup du bot, c'est au tour de White.
+      // On évalue la position. EvaluateBoard renvoie score positif pour avantage Black.
+      const score = evaluateBoard();
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMoves = [move];
+      } else if (score === bestScore) {
+        bestMoves.push(move);
+      }
+
+      restoreState(state);
+    }
+
+    return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+  }
+
+  if (difficulty === 'hard') {
+    // Minimax Depth 3
+    const depth = 3;
+    const { move } = minimax(depth, -Infinity, Infinity, true);
+    return move;
+  }
+
+  return null;
+}
+
+function minimax(depth, alpha, beta, isMaximizing) {
+  if (depth === 0) {
+    return { score: evaluateBoard() };
+  }
+
+  const moves = generateAllLegalMoves(turn); // turn est à jour grâce à applyVirtualMove
+  if (moves.length === 0) {
+    if (isInCheck(turn)) {
+      return { score: isMaximizing ? -10000 : 10000 }; // Echec et mat (Black perd / White perd)
+    }
+    return { score: 0 }; // Pat
+  }
+
+  let bestMove = null;
+
+  if (isMaximizing) { // Tour du Bot (Black)
+    let maxEval = -Infinity;
+    for (const move of moves) {
+      if (move.promotion) move.promotionPiece = 'q';
+
+      const state = saveState();
+      applyVirtualMove(move);
+
+      const eval = minimax(depth - 1, alpha, beta, false).score;
+
+      restoreState(state);
+
+      if (eval > maxEval) {
+        maxEval = eval;
+        bestMove = move;
+      }
+      alpha = Math.max(alpha, eval);
+      if (beta <= alpha) break;
+    }
+    return { score: maxEval, move: bestMove };
+
+  } else { // Tour du Joueur (White)
+    let minEval = Infinity;
+    for (const move of moves) {
+      if (move.promotion) move.promotionPiece = 'q';
+
+      const state = saveState();
+      applyVirtualMove(move);
+
+      const eval = minimax(depth - 1, alpha, beta, true).score;
+
+      restoreState(state);
+
+      if (eval < minEval) {
+        minEval = eval;
+        bestMove = move;
+      }
+      beta = Math.min(beta, eval);
+      if (beta <= alpha) break;
+    }
+    return { score: minEval, move: bestMove };
+  }
 }
 
 /* =========================================
