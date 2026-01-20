@@ -87,6 +87,10 @@ const pipeWidth = 50;
 const pipeGap = 120;
 let pipeTimer = 0;
 
+// ===== FOND (NUAGES) =====
+var clouds = [];
+let cloudTimer = 0;
+
 // ===== CONTRÔLES =====
 function flap() {
     if (!gameStarted) {
@@ -111,6 +115,7 @@ function resetGame() {
     bird.y = 200;
     bird.velocity = 0;
     pipes.length = 0;
+    clouds.length = 0;
     score = 0;
     pipesSpawned = 0;
     gameOver = false;
@@ -119,6 +124,17 @@ function resetGame() {
 }
 
 // ===== DESSINS =====
+function drawClouds() {
+    ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+    clouds.forEach(c => {
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, c.size, 0, Math.PI * 2);
+        ctx.arc(c.x + c.size * 0.8, c.y - c.size * 0.5, c.size * 1.2, 0, Math.PI * 2);
+        ctx.arc(c.x + c.size * 1.6, c.y, c.size * 0.9, 0, Math.PI * 2);
+        ctx.fill();
+    });
+}
+
 function drawBird() {
     ctx.beginPath();
     ctx.arc(bird.x, bird.y, bird.radius, 0, Math.PI * 2);
@@ -168,6 +184,25 @@ function update() {
     // Sol
     if (!godMode && bird.y + bird.radius > canvas.height) {
         endGame();
+    }
+
+    // Nuages (Parallaxe)
+    cloudTimer++;
+    if (cloudTimer > 150) {
+        clouds.push({
+            x: canvas.width + 50,
+            y: Math.random() * (canvas.height / 2),
+            size: 20 + Math.random() * 20,
+            speed: 0.5 + Math.random() * 0.5
+        });
+        cloudTimer = 0;
+    }
+    clouds.forEach(c => {
+        c.x -= c.speed;
+    });
+    // Nettoyage nuages
+    if (clouds.length && clouds[0].x < -100) {
+        clouds.shift();
     }
 
     // Tuyaux
@@ -291,6 +326,7 @@ function endGame() {
 function loop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     update();
+    drawClouds();
     drawPipes();
     drawBird();
     drawScore();
