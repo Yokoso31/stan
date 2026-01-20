@@ -243,23 +243,44 @@ function update() {
     if (keys["m"] || keys["M"]) player2.y += player2.speed;
     player2.y = Math.max(0, Math.min(canvas.height - paddleHeight, player2.y));
 
-    // Balle
-    ball.x += ball.vx;
-    ball.y += ball.vy;
+    // Sub-stepping logic to prevent tunneling
+    let speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+    // Determine how many steps we need.
+    // We want step size < paddleWidth (15) roughly.
+    // Let's be safe and say step size < 10.
+    let steps = Math.ceil(speed / 10);
+    if (steps < 1) steps = 1;
 
-    if (ball.y <= 0 || ball.y >= canvas.height) {
-        if (secretMode) {
-             ball.vy = (Math.random() > 0.5 ? 1 : -1) * (Math.random() * 6 + 2);
-             if (ball.y <= 0) ball.vy = Math.abs(ball.vy);
-             else ball.vy = -Math.abs(ball.vy);
-        } else {
-             ball.vy *= -1;
+    let stepVx = ball.vx / steps;
+    let stepVy = ball.vy / steps;
+
+    for (let i = 0; i < steps; i++) {
+        ball.x += stepVx;
+        ball.y += stepVy;
+
+        // Wall Bounce
+        if (ball.y <= 0 || ball.y >= canvas.height) {
+            if (secretMode) {
+                 ball.vy = (Math.random() > 0.5 ? 1 : -1) * (Math.random() * 6 + 2);
+                 // Recalculate stepVy for remaining steps??
+                 // Simpler: Just reflect velocity for future frames and correct position.
+                 if (ball.y <= 0) ball.vy = Math.abs(ball.vy);
+                 else ball.vy = -Math.abs(ball.vy);
+
+                 // Update stepVy to match new vy, so next sub-steps use new direction
+                 stepVy = ball.vy / steps;
+            } else {
+                 ball.vy *= -1;
+                 stepVy *= -1;
+            }
         }
-    }
 
-    // Collision raquettes
-    checkPaddleCollision(player1);
-    checkPaddleCollision(player2);
+        // Collision Checks
+        // We check collisions at each step. If one happens, we break the loop
+        // to let the frame finish and update velocity for next frame fully.
+        if (checkPaddleCollision(player1)) break;
+        if (checkPaddleCollision(player2)) break;
+    }
 
     // Cap max speed
     if (ball.vx > 20) ball.vx = 20;
@@ -300,6 +321,7 @@ function checkPaddleCollision(p) {
             ball.vx = -ball.vx;
             ball.vx *= 1.05;
             if (secretMode) randomizeBounce();
+            return true; // Collision handled
         } else {
             // Vertical Collision (Top/Bottom Edge)
             if (overlapTop < overlapBottom) {
@@ -308,8 +330,10 @@ function checkPaddleCollision(p) {
                 ball.y = pBottom + ballSize / 2;
             }
             ball.vy = -ball.vy;
+            return true; // Collision handled
         }
     }
+    return false;
 }
 
 function randomizeBounce() {
