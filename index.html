@@ -148,13 +148,11 @@ document.addEventListener("keydown", e => {
     }
 
     // Cheat detection (Shift + A Z E)
-    // We store the last 3 keys
     if (!gameRunning) {
         if (e.key === "A" || e.key === "Z" || e.key === "E") {
              keySequence.push(e.key);
              if (keySequence.length > 3) keySequence.shift();
 
-             // Check for A, Z, E
              if (keySequence.join("") === "AZE") {
                  secretMode = !secretMode;
                  if (secretMode) {
@@ -166,10 +164,9 @@ document.addEventListener("keydown", e => {
                      resultText.style.color = "white";
                      resultText.style.textShadow = "0 0 20px white";
                  }
-                 keySequence = []; // Reset
+                 keySequence = [];
              }
         } else if (e.key.length === 1) {
-            // Reset if other key pressed (ignoring Shift/Ctrl etc which often have length > 1 or specific codes)
              keySequence = [];
         }
     }
@@ -184,12 +181,10 @@ btnPlay.addEventListener("click", () => {
 });
 
 btnBall.addEventListener("click", () => {
-    // Cycle colors
     const colors = ["white", "#ff0055", "#00ff55", "#0055ff", "#ffff00"];
     let currentIndex = colors.indexOf(ballColor);
     ballColor = colors[(currentIndex + 1) % colors.length];
 
-    // Visual feedback
     btnBall.style.boxShadow = `0 0 10px ${ballColor}`;
     btnBall.style.borderColor = ballColor;
     if (ballColor === "white") {
@@ -247,9 +242,7 @@ function update() {
 
     if (ball.y <= 0 || ball.y >= canvas.height) {
         if (secretMode) {
-             // Random bounce off walls
              ball.vy = (Math.random() > 0.5 ? 1 : -1) * (Math.random() * 6 + 2);
-             // Ensure it moves away from wall
              if (ball.y <= 0) ball.vy = Math.abs(ball.vy);
              else ball.vy = -Math.abs(ball.vy);
         } else {
@@ -258,16 +251,10 @@ function update() {
     }
 
     // Collision raquettes
-    if (collision(player1)) {
-        ball.vx = Math.abs(ball.vx) * 1.05; // Accélération
-        if (secretMode) randomizeBounce();
-    }
-    if (collision(player2)) {
-        ball.vx = -Math.abs(ball.vx) * 1.05; // Accélération
-        if (secretMode) randomizeBounce();
-    }
+    checkPaddleCollision(player1);
+    checkPaddleCollision(player2);
 
-    // Cap max speed to avoid breaking physics (pass through paddles)
+    // Cap max speed
     if (ball.vx > 20) ball.vx = 20;
     if (ball.vx < -20) ball.vx = -20;
 
@@ -276,23 +263,83 @@ function update() {
     if (ball.x > canvas.width) score(player1);
 }
 
+function checkPaddleCollision(p) {
+    // AABB Collision Detection
+    // Ball Hitbox: Center (ball.x, ball.y), radius/half-size = 5
+    // Effectively: ball.x-5, ball.y-5, width 10, height 10
+
+    let bLeft = ball.x - ballSize / 2;
+    let bRight = ball.x + ballSize / 2;
+    let bTop = ball.y - ballSize / 2;
+    let bBottom = ball.y + ballSize / 2;
+
+    let pLeft = p.x;
+    let pRight = p.x + paddleWidth;
+    let pTop = p.y;
+    let pBottom = p.y + paddleHeight;
+
+    // Check intersection
+    if (bLeft < pRight && bRight > pLeft && bTop < pBottom && bBottom > pTop) {
+
+        // Determine collision side by calculating overlap depth
+        // Positive overlaps
+        let overlapLeft = bRight - pLeft;
+        let overlapRight = pRight - bLeft;
+        let overlapTop = bBottom - pTop;
+        let overlapBottom = pBottom - bTop;
+
+        // Find smallest overlap
+        let minOverlapX = Math.min(overlapLeft, overlapRight);
+        let minOverlapY = Math.min(overlapTop, overlapBottom);
+
+        if (minOverlapX < minOverlapY) {
+            // Horizontal Collision (Front Face)
+
+            // Resolve overlap
+            if (overlapLeft < overlapRight) {
+                 ball.x = pLeft - ballSize / 2;
+            } else {
+                 ball.x = pRight + ballSize / 2;
+            }
+
+            // Reflect and Accelerate
+            ball.vx = -ball.vx; // Basic Reflection
+
+            // Ensure direction matches side (prevent sticking inside)
+            // If we hit right side of paddle (player 1 usually), ball should go right
+            // If we hit left side of paddle (player 2 usually), ball should go left
+            // But checking overlapLeft vs overlapRight handles "which side of paddle"
+            // Wait, overlapLeft = bRight - pLeft. If small, ball is on left of paddle's right edge? No.
+
+            // Simplified: Just invert VX, but accelerate
+            ball.vx *= 1.05;
+
+            if (secretMode) randomizeBounce();
+
+        } else {
+            // Vertical Collision (Top/Bottom Edge)
+
+            // Resolve overlap
+            if (overlapTop < overlapBottom) {
+                ball.y = pTop - ballSize / 2;
+            } else {
+                ball.y = pBottom + ballSize / 2;
+            }
+
+            // Reflect Vertical
+            ball.vy = -ball.vy;
+
+            // Do NOT accelerate horizontal speed on edge hit
+            // Maybe add friction or chaos?
+        }
+    }
+}
+
 function randomizeBounce() {
-    // Randomize vertical speed significantly
     ball.vy = (Math.random() * 10 - 5);
-    // In secret mode, we still respect the accelerated direction but randomize magnitude a bit more
-    // ball.vx is already set to accelerate direction in update(), but we can add chaos here
     let sign = ball.vx > 0 ? 1 : -1;
     let speed = Math.abs(ball.vx);
     ball.vx = sign * (speed + (Math.random() * 2 - 1));
-}
-
-function collision(p) {
-    return (
-        ball.x - ballSize < p.x + paddleWidth &&
-        ball.x + ballSize > p.x &&
-        ball.y > p.y &&
-        ball.y < p.y + paddleHeight
-    );
 }
 
 function score(who) {
@@ -307,7 +354,6 @@ function endGame(player1Won) {
     overlay.style.display = "flex";
     resultText.textContent = player1Won ? "JOUEUR 1 GAGNE" : "JOUEUR 2 GAGNE";
 
-    // Reset secret visual text if game over
     resultText.style.color = "white";
     resultText.style.textShadow = "0 0 20px white";
 }
@@ -320,13 +366,13 @@ function draw() {
 
     ctx.shadowBlur = 15;
 
-    // Raquettes (always white for now)
+    // Raquettes
     ctx.fillStyle = "white";
     ctx.shadowColor = "white";
     ctx.fillRect(player1.x, player1.y, paddleWidth, paddleHeight);
     ctx.fillRect(player2.x, player2.y, paddleWidth, paddleHeight);
 
-    // Balle (use selected color)
+    // Balle
     if (secretMode) {
         const hue = (Date.now() / 5) % 360;
         ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
