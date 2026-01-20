@@ -46,6 +46,30 @@ var gameStarted = false;
 var gameOver = false;
 var score = 0;
 var pipesSpawned = 0;
+var godMode = false;
+
+// Cheat Code
+const CHEAT_SEQUENCE = ['d', 'f'];
+let cheatProgress = 0;
+
+document.addEventListener("keydown", (e) => {
+    if (e.shiftKey) {
+        if (e.key.toLowerCase() === CHEAT_SEQUENCE[cheatProgress]) {
+            cheatProgress++;
+            if (cheatProgress === CHEAT_SEQUENCE.length) {
+                godMode = !godMode;
+                console.log("God Mode: " + godMode);
+                info.textContent = godMode ? "GOD MODE ACTIF" : "";
+                setTimeout(() => { if(gameStarted && !gameOver) info.textContent = ""; }, 2000);
+                cheatProgress = 0;
+            }
+        } else {
+             if (e.key !== "Shift") cheatProgress = 0;
+        }
+    } else {
+        cheatProgress = 0;
+    }
+});
 
 // ===== OISEAU =====
 var bird = {
@@ -98,7 +122,7 @@ function resetGame() {
 function drawBird() {
     ctx.beginPath();
     ctx.arc(bird.x, bird.y, bird.radius, 0, Math.PI * 2);
-    ctx.fillStyle = "yellow";
+    ctx.fillStyle = godMode ? "orange" : "yellow";
     ctx.fill();
     ctx.stroke();
 }
@@ -142,7 +166,7 @@ function update() {
     bird.y += bird.velocity;
 
     // Sol
-    if (bird.y + bird.radius > canvas.height) {
+    if (!godMode && bird.y + bird.radius > canvas.height) {
         endGame();
     }
 
@@ -219,7 +243,7 @@ function update() {
                 // L'obstacle est un MUR avec un TROU CIRCULAIRE.
                 // Mais "cerceau" veut dire juste l'anneau.
                 // Je vais dire : Si on touche l'anneau (distance ~ rayon), mort.
-                if (dist > p.radius - bird.radius && dist < p.radius + bird.radius + 5) {
+                if (!godMode && dist > p.radius - bird.radius && dist < p.radius + bird.radius + 5) {
                     endGame();
                 }
             }
@@ -235,6 +259,7 @@ function update() {
 
             // Collision Tuyau
             if (
+                !godMode &&
                 bird.x + bird.radius > p.x &&
                 bird.x - bird.radius < p.x + pipeWidth &&
                 (bird.y - bird.radius < p.top ||
