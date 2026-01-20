@@ -135,13 +135,23 @@ function update() {
             x: canvas.width,
             top: topHeight,
             bottom: topHeight + pipeGap,
-            passed: false
+            passed: false,
+            vy: (Math.random() < 0.5 ? 1 : -1) * 1
         });
         pipeTimer = 0;
     }
 
     pipes.forEach(p => {
         p.x -= 2;
+
+        // Mouvement vertical
+        p.top += p.vy;
+        p.bottom += p.vy;
+
+        // Rebond haut/bas
+        if (p.top < 20 || p.bottom > canvas.height - 20) {
+            p.vy *= -1;
+        }
 
         // Collision
         if (
