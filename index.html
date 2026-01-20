@@ -69,18 +69,18 @@ const winScore = 5;
 let gameRunning = false;
 let gameOver = false;
 
-let player = {
+let player1 = {
     x: 20,
     y: canvas.height / 2 - paddleHeight / 2,
     score: 0,
     speed: 6
 };
 
-let ai = {
+let player2 = {
     x: canvas.width - 32,
     y: canvas.height / 2 - paddleHeight / 2,
     score: 0,
-    speed: 4
+    speed: 6
 };
 
 let ball = resetBall();
@@ -91,7 +91,7 @@ let ball = resetBall();
 let keys = {};
 
 document.addEventListener("keydown", e => {
-    keys[e.code] = true;
+    keys[e.key] = true;
 
     if (e.code === "Space") {
         if (!gameRunning && !gameOver) gameRunning = true;
@@ -100,7 +100,7 @@ document.addEventListener("keydown", e => {
 });
 
 document.addEventListener("keyup", e => {
-    keys[e.code] = false;
+    keys[e.key] = false;
 });
 
 /* ==========================
@@ -116,8 +116,8 @@ function resetBall(direction = 1) {
 }
 
 function restartGame() {
-    player.score = 0;
-    ai.score = 0;
+    player1.score = 0;
+    player2.score = 0;
     gameOver = false;
     gameRunning = false;
     overlay.style.display = "none";
@@ -127,15 +127,15 @@ function restartGame() {
 function update() {
     if (!gameRunning || gameOver) return;
 
-    // Joueur
-    if (keys["ArrowUp"]) player.y -= player.speed;
-    if (keys["ArrowDown"]) player.y += player.speed;
-    player.y = Math.max(0, Math.min(canvas.height - paddleHeight, player.y));
+    // Joueur 1 (Z/S)
+    if (keys["z"] || keys["Z"]) player1.y -= player1.speed;
+    if (keys["s"] || keys["S"]) player1.y += player1.speed;
+    player1.y = Math.max(0, Math.min(canvas.height - paddleHeight, player1.y));
 
-    // IA
-    const aiCenter = ai.y + paddleHeight / 2;
-    if (aiCenter < ball.y - 10) ai.y += ai.speed;
-    if (aiCenter > ball.y + 10) ai.y -= ai.speed;
+    // Joueur 2 (P/M)
+    if (keys["p"] || keys["P"]) player2.y -= player2.speed;
+    if (keys["m"] || keys["M"]) player2.y += player2.speed;
+    player2.y = Math.max(0, Math.min(canvas.height - paddleHeight, player2.y));
 
     // Balle
     ball.x += ball.vx;
@@ -144,12 +144,12 @@ function update() {
     if (ball.y <= 0 || ball.y >= canvas.height) ball.vy *= -1;
 
     // Collision raquettes
-    if (collision(player)) ball.vx = Math.abs(ball.vx);
-    if (collision(ai)) ball.vx = -Math.abs(ball.vx);
+    if (collision(player1)) ball.vx = Math.abs(ball.vx);
+    if (collision(player2)) ball.vx = -Math.abs(ball.vx);
 
     // Score
-    if (ball.x < 0) score(ai);
-    if (ball.x > canvas.width) score(player);
+    if (ball.x < 0) score(player2);
+    if (ball.x > canvas.width) score(player1);
 }
 
 function collision(p) {
@@ -163,15 +163,15 @@ function collision(p) {
 
 function score(who) {
     who.score++;
-    if (who.score >= winScore) endGame(who === player);
-    ball = resetBall(who === ai ? -1 : 1);
+    if (who.score >= winScore) endGame(who === player1);
+    ball = resetBall(who === player2 ? -1 : 1);
     gameRunning = false;
 }
 
-function endGame(playerWon) {
+function endGame(player1Won) {
     gameOver = true;
     overlay.style.display = "flex";
-    resultText.textContent = playerWon ? "YOU WIN" : "YOU LOSE";
+    resultText.textContent = player1Won ? "JOUEUR 1 GAGNE" : "JOUEUR 2 GAGNE";
 }
 
 /* ==========================
@@ -185,8 +185,8 @@ function draw() {
     ctx.shadowBlur = 15;
 
     // Raquettes
-    ctx.fillRect(player.x, player.y, paddleWidth, paddleHeight);
-    ctx.fillRect(ai.x, ai.y, paddleWidth, paddleHeight);
+    ctx.fillRect(player1.x, player1.y, paddleWidth, paddleHeight);
+    ctx.fillRect(player2.x, player2.y, paddleWidth, paddleHeight);
 
     // Balle
     ctx.fillRect(ball.x - ballSize / 2, ball.y - ballSize / 2, ballSize, ballSize);
@@ -194,8 +194,8 @@ function draw() {
     // Scores
     ctx.shadowBlur = 0;
     ctx.font = "32px Arial";
-    ctx.fillText(player.score, canvas.width / 4, 40);
-    ctx.fillText(ai.score, canvas.width * 3 / 4, 40);
+    ctx.fillText(player1.score, canvas.width / 4, 40);
+    ctx.fillText(player2.score, canvas.width * 3 / 4, 40);
 
     // Ligne centrale
     ctx.setLineDash([10, 15]);
