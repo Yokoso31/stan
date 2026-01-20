@@ -45,6 +45,31 @@
         color: #ddd;
         text-shadow: none;
     }
+
+    #menu {
+        margin: 20px 0;
+        display: flex;
+        gap: 20px;
+    }
+
+    .btn {
+        background: transparent;
+        border: 2px solid white;
+        color: white;
+        font-size: 24px;
+        padding: 10px 30px;
+        cursor: pointer;
+        font-family: Arial, sans-serif;
+        text-transform: uppercase;
+        box-shadow: 0 0 10px white;
+        transition: all 0.2s;
+    }
+
+    .btn:hover {
+        background: white;
+        color: black;
+        box-shadow: 0 0 20px white;
+    }
 </style>
 </head>
 <body>
@@ -54,12 +79,17 @@
 <div id="overlay" class="overlay">
     <div id="result">PONG NEON</div>
 
+    <div id="menu">
+        <button id="btn-play" class="btn">JOUER</button>
+        <button id="btn-ball" class="btn">BALLE</button>
+    </div>
+
     <div class="controls">
         <div><strong>Joueur 1</strong> : Z (Haut) / S (Bas)</div>
         <div><strong>Joueur 2</strong> : P (Haut) / M (Bas)</div>
     </div>
 
-    <small>Appuyez sur ESPACE pour jouer</small>
+    <small>Ou appuyez sur ESPACE</small>
 </div>
 
 <script>
@@ -70,6 +100,8 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const overlay = document.getElementById("overlay");
 const resultText = document.getElementById("result");
+const btnPlay = document.getElementById("btn-play");
+const btnBall = document.getElementById("btn-ball");
 
 const paddleWidth = 12;
 const paddleHeight = 90;
@@ -81,6 +113,7 @@ const winScore = 5;
 ========================== */
 let gameRunning = false;
 let gameOver = false;
+let ballColor = "white";
 
 let player1 = {
     x: 20,
@@ -107,11 +140,7 @@ document.addEventListener("keydown", e => {
     keys[e.key] = true;
 
     if (e.code === "Space") {
-        if (!gameRunning && !gameOver) {
-            gameRunning = true;
-            overlay.style.display = "none";
-        }
-        if (gameOver) restartGame();
+        startGame();
     }
 });
 
@@ -119,9 +148,37 @@ document.addEventListener("keyup", e => {
     keys[e.key] = false;
 });
 
+btnPlay.addEventListener("click", () => {
+    startGame();
+});
+
+btnBall.addEventListener("click", () => {
+    // Cycle colors
+    const colors = ["white", "#ff0055", "#00ff55", "#0055ff", "#ffff00"];
+    let currentIndex = colors.indexOf(ballColor);
+    ballColor = colors[(currentIndex + 1) % colors.length];
+
+    // Visual feedback
+    btnBall.style.boxShadow = `0 0 10px ${ballColor}`;
+    btnBall.style.borderColor = ballColor;
+    if (ballColor === "white") {
+        btnBall.style.color = "white";
+    } else {
+        btnBall.style.color = ballColor;
+    }
+});
+
 /* ==========================
    LOGIQUE
 ========================== */
+function startGame() {
+    if (!gameRunning && !gameOver) {
+        gameRunning = true;
+        overlay.style.display = "none";
+    }
+    if (gameOver) restartGame();
+}
+
 function resetBall(direction = 1) {
     return {
         x: canvas.width / 2,
@@ -196,18 +253,22 @@ function endGame(player1Won) {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = "white";
-    ctx.shadowColor = "white";
     ctx.shadowBlur = 15;
 
-    // Raquettes
+    // Raquettes (always white for now)
+    ctx.fillStyle = "white";
+    ctx.shadowColor = "white";
     ctx.fillRect(player1.x, player1.y, paddleWidth, paddleHeight);
     ctx.fillRect(player2.x, player2.y, paddleWidth, paddleHeight);
 
-    // Balle
+    // Balle (use selected color)
+    ctx.fillStyle = ballColor;
+    ctx.shadowColor = ballColor;
     ctx.fillRect(ball.x - ballSize / 2, ball.y - ballSize / 2, ballSize, ballSize);
 
     // Scores
+    ctx.fillStyle = "white";
+    ctx.shadowColor = "white";
     ctx.shadowBlur = 0;
     ctx.font = "32px Arial";
     ctx.fillText(player1.score, canvas.width / 4, 40);
