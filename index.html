@@ -78,7 +78,9 @@ var bird = {
     radius: 12,
     velocity: 0,
     gravity: 0.5,
-    jump: -8
+    jump: -8,
+    rotation: 0,
+    frame: 0
 };
 
 // ===== TUYAUX =====
@@ -146,11 +148,31 @@ function drawClouds() {
 }
 
 function drawBird() {
+    ctx.save();
+    ctx.translate(bird.x, bird.y);
+    ctx.rotate(bird.rotation);
+
     ctx.beginPath();
-    ctx.arc(bird.x, bird.y, bird.radius, 0, Math.PI * 2);
+    ctx.arc(0, 0, bird.radius, 0, Math.PI * 2);
     ctx.fillStyle = godMode ? "orange" : "yellow";
     ctx.fill();
     ctx.stroke();
+
+    // Oeil
+    ctx.fillStyle = "black";
+    ctx.beginPath();
+    ctx.arc(4, -4, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Aile (animation)
+    ctx.fillStyle = "white";
+    ctx.beginPath();
+    let wingY = Math.sin(bird.frame * 0.2) * 5;
+    ctx.ellipse(-5, 2 + wingY, 8, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.restore();
 }
 
 function drawBoss() {
@@ -214,6 +236,8 @@ function update() {
 
     bird.velocity += bird.gravity;
     bird.y += bird.velocity;
+    bird.rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (bird.velocity * 0.1)));
+    bird.frame++;
 
     // Sol
     if (!godMode && bird.y + bird.radius > canvas.height) {
