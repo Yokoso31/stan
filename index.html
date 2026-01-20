@@ -17,6 +17,8 @@
         display: block;
         margin: auto;
         background: black;
+        border: 4px solid white;
+        box-shadow: 0 0 20px white;
     }
 
     .overlay {
@@ -257,13 +259,17 @@ function update() {
 
     // Collision raquettes
     if (collision(player1)) {
-        ball.vx = Math.abs(ball.vx);
+        ball.vx = Math.abs(ball.vx) * 1.05; // Accélération
         if (secretMode) randomizeBounce();
     }
     if (collision(player2)) {
-        ball.vx = -Math.abs(ball.vx);
+        ball.vx = -Math.abs(ball.vx) * 1.05; // Accélération
         if (secretMode) randomizeBounce();
     }
+
+    // Cap max speed to avoid breaking physics (pass through paddles)
+    if (ball.vx > 20) ball.vx = 20;
+    if (ball.vx < -20) ball.vx = -20;
 
     // Score
     if (ball.x < 0) score(player2);
@@ -273,11 +279,11 @@ function update() {
 function randomizeBounce() {
     // Randomize vertical speed significantly
     ball.vy = (Math.random() * 10 - 5);
-    // Maybe increase speed slightly
-    ball.vx = ball.vx > 0 ? (ball.vx + 0.5) : (ball.vx - 0.5);
-    // Limit max speed
-    if (ball.vx > 15) ball.vx = 15;
-    if (ball.vx < -15) ball.vx = -15;
+    // In secret mode, we still respect the accelerated direction but randomize magnitude a bit more
+    // ball.vx is already set to accelerate direction in update(), but we can add chaos here
+    let sign = ball.vx > 0 ? 1 : -1;
+    let speed = Math.abs(ball.vx);
+    ball.vx = sign * (speed + (Math.random() * 2 - 1));
 }
 
 function collision(p) {
