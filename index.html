@@ -114,6 +114,8 @@ const winScore = 5;
 let gameRunning = false;
 let gameOver = false;
 let ballColor = "white";
+let secretMode = false;
+let keySequence = [];
 
 let player1 = {
     x: 20,
@@ -141,6 +143,33 @@ document.addEventListener("keydown", e => {
 
     if (e.code === "Space") {
         startGame();
+    }
+
+    // Cheat detection (Shift + A Z E)
+    // We store the last 3 keys
+    if (!gameRunning) {
+        if (e.key === "A" || e.key === "Z" || e.key === "E") {
+             keySequence.push(e.key);
+             if (keySequence.length > 3) keySequence.shift();
+
+             // Check for A, Z, E
+             if (keySequence.join("") === "AZE") {
+                 secretMode = !secretMode;
+                 if (secretMode) {
+                     resultText.textContent = "SECRET MODE ACTIVATED";
+                     resultText.style.color = "#ff00ff";
+                     resultText.style.textShadow = "0 0 20px #ff00ff";
+                 } else {
+                     resultText.textContent = "PONG NEON";
+                     resultText.style.color = "white";
+                     resultText.style.textShadow = "0 0 20px white";
+                 }
+                 keySequence = []; // Reset
+             }
+        } else if (e.key.length === 1) {
+            // Reset if other key pressed (ignoring Shift/Ctrl etc which often have length > 1 or specific codes)
+             keySequence = [];
+        }
     }
 });
 
@@ -214,15 +243,41 @@ function update() {
     ball.x += ball.vx;
     ball.y += ball.vy;
 
-    if (ball.y <= 0 || ball.y >= canvas.height) ball.vy *= -1;
+    if (ball.y <= 0 || ball.y >= canvas.height) {
+        if (secretMode) {
+             // Random bounce off walls
+             ball.vy = (Math.random() > 0.5 ? 1 : -1) * (Math.random() * 6 + 2);
+             // Ensure it moves away from wall
+             if (ball.y <= 0) ball.vy = Math.abs(ball.vy);
+             else ball.vy = -Math.abs(ball.vy);
+        } else {
+             ball.vy *= -1;
+        }
+    }
 
     // Collision raquettes
-    if (collision(player1)) ball.vx = Math.abs(ball.vx);
-    if (collision(player2)) ball.vx = -Math.abs(ball.vx);
+    if (collision(player1)) {
+        ball.vx = Math.abs(ball.vx);
+        if (secretMode) randomizeBounce();
+    }
+    if (collision(player2)) {
+        ball.vx = -Math.abs(ball.vx);
+        if (secretMode) randomizeBounce();
+    }
 
     // Score
     if (ball.x < 0) score(player2);
     if (ball.x > canvas.width) score(player1);
+}
+
+function randomizeBounce() {
+    // Randomize vertical speed significantly
+    ball.vy = (Math.random() * 10 - 5);
+    // Maybe increase speed slightly
+    ball.vx = ball.vx > 0 ? (ball.vx + 0.5) : (ball.vx - 0.5);
+    // Limit max speed
+    if (ball.vx > 15) ball.vx = 15;
+    if (ball.vx < -15) ball.vx = -15;
 }
 
 function collision(p) {
@@ -245,6 +300,10 @@ function endGame(player1Won) {
     gameOver = true;
     overlay.style.display = "flex";
     resultText.textContent = player1Won ? "JOUEUR 1 GAGNE" : "JOUEUR 2 GAGNE";
+
+    // Reset secret visual text if game over
+    resultText.style.color = "white";
+    resultText.style.textShadow = "0 0 20px white";
 }
 
 /* ==========================
@@ -262,8 +321,14 @@ function draw() {
     ctx.fillRect(player2.x, player2.y, paddleWidth, paddleHeight);
 
     // Balle (use selected color)
-    ctx.fillStyle = ballColor;
-    ctx.shadowColor = ballColor;
+    if (secretMode) {
+        const hue = (Date.now() / 5) % 360;
+        ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+        ctx.shadowColor = `hsl(${hue}, 100%, 50%)`;
+    } else {
+        ctx.fillStyle = ballColor;
+        ctx.shadowColor = ballColor;
+    }
     ctx.fillRect(ball.x - ballSize / 2, ball.y - ballSize / 2, ballSize, ballSize);
 
     // Scores
