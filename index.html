@@ -2,949 +2,214 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Horror Space Invaders</title>
+<title>Fortnite Chess</title>
 <style>
-    html, body {
-        margin: 0;
-        background: radial-gradient(circle at center, #200000, #000);
-        overflow: hidden;
-        font-family: 'Courier New', monospace;
-        color: #ff3333;
-    }
+:root {
+  --bg: #0b0f1a;
+  --panel: #141a2a;
+  --neon-blue: #00f6ff;
+  --neon-purple: #b44cff;
+  --neon-pink: #ff4ecd;
+  --white: #e9f1ff;
+}
 
-    canvas {
-        display: block;
-        margin: auto;
-    }
+* {
+  box-sizing: border-box;
+  font-family: "Segoe UI", sans-serif;
+}
 
-    #ui {
-        position: absolute;
-        top: 10px;
-        width: 100%;
-        text-align: center;
-        font-size: 20px;
-        text-shadow: 0 0 10px #ff0000;
-        font-weight: bold;
-    }
+body {
+  margin: 0;
+  background: radial-gradient(circle at top, #1a2150, var(--bg));
+  color: var(--white);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
 
-    #gameOver {
-        position: absolute;
-        inset: 0;
-        display: none;
-        background: rgba(0,0,0,0.9);
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        color: #ff0000;
-        text-shadow: 0 0 20px #ff0000;
-    }
+.game {
+  display: flex;
+  gap: 30px;
+}
 
-    #gameOver h1 {
-        font-size: 60px;
-        margin-bottom: 20px;
-        border-bottom: 2px solid #ff0000;
-    }
+.board {
+  display: grid;
+  grid-template-columns: repeat(8, 70px);
+  grid-template-rows: repeat(8, 70px);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 0 40px var(--neon-blue);
+}
 
-    #gameOver button {
-        margin-top: 20px;
-        padding: 12px 30px;
-        font-size: 20px;
-        font-family: 'Courier New', monospace;
-        cursor: pointer;
-        background: #110000;
-        color: #ff3333;
-        border: 2px solid #ff3333;
-        box-shadow: 0 0 15px #ff0000;
-        transition: 0.3s;
-    }
+.square {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 40px;
+  cursor: pointer;
+  transition: 0.2s;
+}
 
-    #gameOver button:hover {
-        background: #ff3333;
-        color: black;
-    }
+.dark {
+  background: #1b2240;
+}
+
+.light {
+  background: #2c3570;
+}
+
+.square:hover {
+  box-shadow: inset 0 0 15px var(--neon-blue);
+}
+
+.selected {
+  box-shadow: inset 0 0 25px var(--neon-purple);
+}
+
+.move {
+  box-shadow: inset 0 0 25px var(--neon-pink);
+}
+
+.panel {
+  background: linear-gradient(180deg, #141a2a, #0b0f1a);
+  padding: 20px;
+  border-radius: 16px;
+  width: 220px;
+  box-shadow: 0 0 25px var(--neon-purple);
+}
+
+.panel h1 {
+  margin: 0 0 10px;
+  font-size: 22px;
+  text-align: center;
+  color: var(--neon-blue);
+}
+
+.turn {
+  text-align: center;
+  margin: 15px 0;
+  font-size: 18px;
+}
+
+button {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(90deg, var(--neon-blue), var(--neon-purple));
+  color: #000;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+button:hover {
+  filter: brightness(1.2);
+}
 </style>
 </head>
 <body>
 
-<div id="ui">Score: <span id="score">0</span> | Vies: <span id="lives">3</span> | Niveau: <span id="level">1</span></div>
+<div class="game">
+  <div class="board" id="board"></div>
 
-<div id="gameOver">
-    <h1>VOUS ÊTES MORT</h1>
-    <button onclick="restart()">RÉINCARNER</button>
+  <div class="panel">
+    <h1>FORTNITE CHESS</h1>
+    <div class="turn" id="turn">Tour : Blanc</div>
+    <button onclick="resetGame()">Nouvelle partie</button>
+  </div>
 </div>
 
-<canvas id="game" width="800" height="600"></canvas>
-
 <script>
-/* ==========================
-   SETUP
-========================== */
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-
-let score = 0;
-let lives = 3;
-let level = 1;
-let gameRunning = true;
-let isPaused = false;
-
-/* ==========================
-   INPUT
-========================== */
-const keys = {};
-document.addEventListener("keydown", e => keys[e.code] = true);
-document.addEventListener("keyup", e => keys[e.code] = false);
-
-// Cheat Code: Hold SHIFT + type 'azerty'
-const CHEAT_CODE = "azerty";
-let cheatProgress = 0;
-
-document.addEventListener("keydown", (e) => {
-    if (e.key === "m" || e.key === "M") {
-        isPaused = !isPaused;
-    }
-
-    if (e.shiftKey) {
-        if (e.key.toLowerCase() === CHEAT_CODE[cheatProgress]) {
-            cheatProgress++;
-            if (cheatProgress === CHEAT_CODE.length) {
-                player.invincible = !player.invincible;
-                cheatProgress = 0;
-                console.log("God Mode: " + player.invincible);
-            }
-        } else {
-             if (e.key !== "Shift") cheatProgress = 0;
-        }
-    } else {
-        cheatProgress = 0;
-    }
-});
-
-/* ==========================
-   PLAYER
-========================== */
-const player = {
-    x: 400,
-    y: 540,
-    width: 40,
-    height: 20,
-    speed: 6,
-    shield: false,
-    rapidFireTimer: 0,
-    charge: 0,
-    invincible: false
+const pieces = {
+  r:"♜", n:"♞", b:"♝", q:"♛", k:"♚", p:"♟",
+  R:"♖", N:"♘", B:"♗", Q:"♕", K:"♔", P:"♙"
 };
 
-const POWERUP_TYPES = [
-    { type: 'HEALTH', color: '#00ffff', label: 'H' },
-    { type: 'SHIELD', color: '#0000ff', label: 'S' },
-    { type: 'RAPID_FIRE', color: '#ffff00', label: 'F' }
-];
-let powerups = [];
+let boardState, selected = null, turn = "white";
 
-let bullets = [];
-let megaBombs = [];
-let damageExplosions = [];
-let alienBullets = [];
-let shootTimer = 0;
-let spacePrev = false;
-
-/* ==========================
-   ALIENS
-========================== */
-let aliens = [];
-const rows = 4;
-const cols = 8;
-let alienDirection = 1;
-let alienSpeed = 2;
-
-function initAliens() {
-    aliens = [];
-    alienBullets = [];
-    boss = null;
-    for (let y = 0; y < rows; y++) {
-        for (let x = 0; x < cols; x++) {
-            aliens.push({
-                x: 100 + x * 70,
-                y: 80 + y * 60,
-                size: 25,
-                angle: 0
-            });
-        }
-    }
+function initBoard() {
+  boardState = [
+    "rnbqkbnr",
+    "pppppppp",
+    "........",
+    "........",
+    "........",
+    "........",
+    "PPPPPPPP",
+    "RNBQKBNR"
+  ].map(r => r.split(""));
 }
 
-/* ==========================
-   BOSS
-========================== */
-let boss = null;
-const BOSS_PHASE = {
-    HOVER: 0,
-    CHARGE_TELL: 1,
-    CHARGE: 2,
-    RETURN: 3,
-    SHIELD: 4,
-    LASER_CHARGE: 5,
-    LASER_FIRE: 6
-};
+const board = document.getElementById("board");
 
-function initBoss() {
-    aliens = [];
-    alienBullets = [];
-    const isMega = (level === 6);
-    boss = {
-        x: canvas.width / 2 - (isMega ? 60 : 40),
-        y: 60,
-        width: isMega ? 120 : 80,
-        height: isMega ? 140 : 100,
-        hp: isMega ? 800 : 100 * (level * 0.5),
-        maxHp: isMega ? 800 : 100 * (level * 0.5),
-        phase: BOSS_PHASE.HOVER,
-        timer: 0,
-        vx: 3,
-        vy: 0,
-        targetX: 0,
-        targetY: 0,
-        isMega: isMega,
-        bonusTimer: 0
-    };
+function render() {
+  board.innerHTML = "";
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      const sq = document.createElement("div");
+      sq.className = `square ${(x + y) % 2 ? "dark" : "light"}`;
+      sq.dataset.x = x;
+      sq.dataset.y = y;
+      const p = boardState[y][x];
+      if (p !== ".") sq.textContent = pieces[p];
+      sq.onclick = () => clickSquare(x, y, sq);
+      board.appendChild(sq);
+    }
+  }
 }
 
-function updateBoss() {
-    if (!boss) return;
+function clickSquare(x, y, el) {
+  const p = boardState[y][x];
 
-    boss.timer++;
-    boss.bonusTimer++;
-
-    // MEGA BOSS BONUS DROP
-    if (boss.isMega && boss.bonusTimer % 300 === 0) {
-        const type = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
-        powerups.push({
-            x: boss.x + boss.width/2,
-            y: boss.y + boss.height,
-            type: type.type, color: type.color, label: type.label
-        });
+  if (selected) {
+    if (isLegal(selected.x, selected.y, x, y)) {
+      boardState[y][x] = boardState[selected.y][selected.x];
+      boardState[selected.y][selected.x] = ".";
+      turn = turn === "white" ? "black" : "white";
+      document.getElementById("turn").textContent =
+        "Tour : " + (turn === "white" ? "Blanc" : "Noir");
     }
+    selected = null;
+    render();
+    return;
+  }
 
-    if (boss.phase === BOSS_PHASE.HOVER) {
-        // Move side to side
-        boss.x += boss.vx;
-        if (boss.x <= 50 || boss.x >= canvas.width - 50 - boss.width) {
-            boss.vx *= -1;
-        }
-
-        // Shoot aimed bullets
-        if (boss.timer % 60 === 0) {
-            let dx = player.x - (boss.x + boss.width/2);
-            let dy = player.y - (boss.y + boss.height/2);
-            let dist = Math.sqrt(dx*dx + dy*dy);
-            alienBullets.push({
-                x: boss.x + boss.width/2 - 5,
-                y: boss.y + boss.height,
-                width: 15,
-                height: 15,
-                vx: (dx/dist) * 6,
-                vy: (dy/dist) * 6,
-                isBoss: true
-            });
-        }
-
-        // Switch Phase
-        if (boss.isMega) {
-            if (boss.timer > 200) {
-                boss.phase = BOSS_PHASE.SHIELD;
-                boss.timer = 0;
-            }
-        } else {
-            if (boss.timer > 300) {
-                boss.phase = BOSS_PHASE.CHARGE_TELL;
-                boss.timer = 0;
-            }
-        }
-
-    } else if (boss.phase === BOSS_PHASE.SHIELD) {
-        // MEGA BOSS ONLY: Blocking
-        if (boss.timer > 180) { // 3 seconds
-            boss.phase = BOSS_PHASE.LASER_CHARGE;
-            boss.timer = 0;
-        }
-
-    } else if (boss.phase === BOSS_PHASE.LASER_CHARGE) {
-        // Track player slightly
-        if (boss.timer < 60) {
-            boss.x += (player.x - (boss.x + boss.width/2)) * 0.05;
-        }
-        if (boss.timer > 90) { // 1.5s charge
-            boss.phase = BOSS_PHASE.LASER_FIRE;
-            boss.timer = 0;
-        }
-
-    } else if (boss.phase === BOSS_PHASE.LASER_FIRE) {
-        // Huge Beam
-        let beamW = boss.width * 0.6;
-        let beamX = boss.x + boss.width/2 - beamW/2;
-
-        // Beam Collision
-        if (player.x < beamX + beamW && player.x + player.width > beamX) {
-             if (!player.invincible && !player.shield) {
-                 lives--;
-                 if (lives <= 0) gameOver();
-             } else if (player.shield) {
-                 player.shield = false; // Laser breaks shield instantly
-             }
-        }
-
-        if (boss.timer > 60) { // 1 sec laser
-            boss.phase = BOSS_PHASE.RETURN;
-            boss.timer = 0;
-        }
-
-    } else if (boss.phase === BOSS_PHASE.CHARGE_TELL) {
-        // Warning shake
-        boss.x += (Math.random() - 0.5) * 10;
-
-        if (boss.timer > 60) {
-            boss.phase = BOSS_PHASE.CHARGE;
-            boss.timer = 0;
-            boss.targetX = player.x;
-            boss.targetY = player.y;
-
-            let dx = boss.targetX - boss.x;
-            let dy = boss.targetY - boss.y;
-            let dist = Math.sqrt(dx*dx + dy*dy);
-            boss.vx = (dx/dist) * 12;
-            boss.vy = (dy/dist) * 12;
-        }
-
-    } else if (boss.phase === BOSS_PHASE.CHARGE) {
-        boss.x += boss.vx;
-        boss.y += boss.vy;
-
-        if (boss.y > canvas.height - 100 || boss.x < 0 || boss.x > canvas.width || boss.y < 0) {
-             boss.phase = BOSS_PHASE.RETURN;
-             boss.timer = 0;
-        }
-
-    } else if (boss.phase === BOSS_PHASE.RETURN) {
-        let targetX = canvas.width / 2 - boss.width/2;
-        let targetY = 60;
-
-        boss.x += (targetX - boss.x) * 0.05;
-        boss.y += (targetY - boss.y) * 0.05;
-
-        if (Math.abs(boss.x - targetX) < 5 && Math.abs(boss.y - targetY) < 5) {
-            boss.phase = BOSS_PHASE.HOVER;
-            boss.timer = 0;
-            boss.vx = 3 * (Math.random() > 0.5 ? 1 : -1);
-        }
-    }
-
-    // Collision Player Bullets vs Boss
-    for (let i = bullets.length - 1; i >= 0; i--) {
-        let b = bullets[i];
-        if (b.x > boss.x && b.x < boss.x + boss.width &&
-            b.y > boss.y && b.y < boss.y + boss.height) {
-
-            // SHIELD BLOCK
-            if (boss.phase === BOSS_PHASE.SHIELD) {
-                // Ricochet / Block effect
-                createExplosion(b.x, b.y); // Visual only
-                bullets.splice(i, 1);
-                continue;
-            }
-
-            boss.hp -= 1;
-            createExplosion(b.x, b.y);
-            bullets.splice(i, 1);
-        }
-    }
-
-    // Mega Bombs vs Boss
-    for (let i = megaBombs.length - 1; i >= 0; i--) {
-        let b = megaBombs[i];
-         if (b.x > boss.x && b.x < boss.x + boss.width &&
-            b.y > boss.y && b.y < boss.y + boss.height) {
-
-            if (boss.phase === BOSS_PHASE.SHIELD) {
-                 createExplosion(b.x, b.y);
-                 megaBombs.splice(i, 1);
-                 continue;
-            }
-
-            boss.hp -= 10;
-            damageExplosions.push({ x: b.x, y: b.y, radius: 10, life: 20 });
-            megaBombs.splice(i, 1);
-        }
-    }
-
-    // Area Explosions vs Boss
-    for (let e of damageExplosions) {
-        let dx = e.x - (boss.x + boss.width/2);
-        let dy = e.y - (boss.y + boss.height/2);
-        let dist = Math.sqrt(dx*dx + dy*dy);
-        if (dist < e.radius + boss.width/2 && e.life % 5 === 0) {
-             if (boss.phase !== BOSS_PHASE.SHIELD) {
-                boss.hp -= 0.5;
-             }
-        }
-    }
-
-    // Boss Death
-    if (boss.hp <= 0) {
-        for(let k=0; k<15; k++)
-            createExplosion(boss.x + Math.random()*boss.width, boss.y + Math.random()*boss.height);
-
-        boss = null;
-        score += 5000;
-        nextLevel();
-    }
-
-    // Boss Collision with Player
-    if (boss &&
-        player.x < boss.x + boss.width && player.x + player.width > boss.x &&
-        player.y < boss.y + boss.height && player.y + player.height > boss.y) {
-
-        if (!player.invincible) {
-            if (!player.shield) {
-                lives--;
-                player.y += 50; // Push back
-                if(lives <= 0) gameOver();
-            } else {
-                player.shield = false;
-            }
-        }
-    }
+  if (p !== "." && isTurnPiece(p)) {
+    selected = { x, y };
+    highlightMoves(x, y);
+  }
 }
 
-function drawBoss() {
-    if (!boss) return;
-
-    // LASER DRAWING
-    if (boss.phase === BOSS_PHASE.LASER_CHARGE) {
-        let beamW = boss.width * 0.6;
-        let beamX = boss.x + boss.width/2 - beamW/2;
-        ctx.fillStyle = `rgba(255, 0, 0, 0.3)`;
-        ctx.fillRect(beamX, boss.y + boss.height, beamW, canvas.height);
-
-        ctx.beginPath();
-        ctx.arc(boss.x + boss.width/2, boss.y + boss.height/2, 60 * (boss.timer/90), 0, Math.PI*2);
-        ctx.strokeStyle = "red";
-        ctx.stroke();
-    }
-    else if (boss.phase === BOSS_PHASE.LASER_FIRE) {
-        let beamW = boss.width * 0.6;
-        let beamX = boss.x + boss.width/2 - beamW/2;
-
-        ctx.shadowBlur = 30;
-        ctx.shadowColor = "red";
-        ctx.fillStyle = "#ffcccc";
-        ctx.fillRect(beamX, boss.y + boss.height, beamW, canvas.height);
-
-        ctx.fillStyle = "white";
-        ctx.fillRect(beamX + 10, boss.y + boss.height, beamW - 20, canvas.height);
-        ctx.shadowBlur = 0;
-    }
-
-    ctx.save();
-    ctx.translate(boss.x + boss.width/2, boss.y + boss.height/2);
-
-    if (boss.phase === BOSS_PHASE.CHARGE_TELL || boss.phase === BOSS_PHASE.LASER_CHARGE) {
-         ctx.translate((Math.random()-0.5)*5, (Math.random()-0.5)*5);
-    }
-
-    // Boss Visual: Big Skull
-    ctx.shadowColor = boss.isMega ? "#aa00ff" : "#ff0000";
-    ctx.shadowBlur = 20;
-
-    // Shield
-    if (boss.phase === BOSS_PHASE.SHIELD) {
-        ctx.beginPath();
-        ctx.arc(0, 0, boss.width, 0, Math.PI*2);
-        ctx.strokeStyle = "cyan";
-        ctx.lineWidth = 5;
-        ctx.shadowColor = "cyan";
-        ctx.stroke();
-        ctx.fillStyle = "rgba(0, 255, 255, 0.2)";
-        ctx.fill();
-    }
-
-    ctx.fillStyle = boss.isMega ? "#ccbbff" : "#eeeeee";
-    ctx.beginPath();
-    ctx.arc(0, -10, boss.width/2, 0, Math.PI*2);
-    ctx.fill();
-
-    ctx.fillRect(-boss.width*0.3, 10, boss.width*0.6, 40); // Jaw
-
-    ctx.fillStyle = "#000";
-    ctx.beginPath();
-    ctx.arc(-15, -10, 12, 0, Math.PI*2);
-    ctx.arc(15, -10, 12, 0, Math.PI*2);
-    ctx.fill();
-
-    // Glowing eyes
-    ctx.fillStyle = boss.phase === BOSS_PHASE.LASER_FIRE ? "#ffffff" : "#ff0000";
-    ctx.beginPath();
-    ctx.arc(-15, -10, 4, 0, Math.PI*2);
-    ctx.arc(15, -10, 4, 0, Math.PI*2);
-    ctx.fill();
-
-    ctx.restore();
-
-    // Health Bar
-    ctx.fillStyle = "#330000";
-    ctx.fillRect(boss.x, boss.y - 30, boss.width, 10);
-    ctx.fillStyle = boss.isMega ? "#aa00ff" : "#ff0000";
-    ctx.fillRect(boss.x, boss.y - 30, boss.width * (Math.max(0, boss.hp) / boss.maxHp), 10);
-    ctx.strokeStyle = "#fff";
-    ctx.strokeRect(boss.x, boss.y - 30, boss.width, 10);
+function isTurnPiece(p) {
+  return turn === "white" ? p === p.toUpperCase() : p === p.toLowerCase();
 }
 
-/* ==========================
-   PARTICULES
-========================== */
-const particles = [];
-
-function createExplosion(x, y) {
-    for (let i = 0; i < 25; i++) {
-        particles.push({
-            x,
-            y,
-            vx: (Math.random() - 0.5) * 4,
-            vy: (Math.random() - 0.5) * 4,
-            life: 40,
-            color: Math.random() > 0.5 ? "#ff0000" : "#880000"
-        });
-    }
+function isLegal(sx, sy, tx, ty) {
+  const p = boardState[sy][sx];
+  if (!isTurnPiece(p)) return false;
+  if (sx === tx && sy === ty) return false;
+  return true; // logique simplifiée volontaire (pédagogique)
 }
 
-/* ==========================
-   GAME LOOP
-========================== */
-function update() {
-    if (!gameRunning) return;
-    if (isPaused) return;
-
-    // Mouvement joueur
-    if (keys["ArrowLeft"]) player.x -= player.speed;
-    if (keys["ArrowRight"]) player.x += player.speed;
-    player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
-
-    // Tir
-    if (shootTimer > 0) shootTimer--;
-
-    let currentCooldown = 20;
-    if (player.rapidFireTimer > 0) {
-        player.rapidFireTimer--;
-        currentCooldown = 5;
+function highlightMoves(x, y) {
+  render();
+  document.querySelectorAll(".square").forEach(s => {
+    if (isLegal(x, y, s.dataset.x, s.dataset.y)) {
+      s.classList.add("move");
     }
-
-    if (keys["Space"]) {
-        if (player.rapidFireTimer > 0) {
-            if (shootTimer <= 0) {
-                bullets.push({ x: player.x + 20, y: player.y });
-                shootTimer = currentCooldown;
-            }
-        } else {
-            if (!spacePrev && shootTimer <= 0) {
-                bullets.push({ x: player.x + 20, y: player.y });
-                shootTimer = currentCooldown;
-            }
-            player.charge++;
-            if (player.charge >= 60) {
-                megaBombs.push({
-                    x: player.x + 10,
-                    y: player.y - 20,
-                    size: 15
-                });
-                player.charge = 0;
-            }
-        }
-    } else {
-        player.charge = 0;
-    }
-    spacePrev = keys["Space"];
-
-    // BRANCHEMENT BOSS vs ALIENS
-    if (boss) {
-        updateBoss();
-    } else {
-        let moveDown = false;
-        aliens.forEach(a => {
-            a.x += alienSpeed * alienDirection;
-            if (a.x + a.size > canvas.width || a.x - a.size < 0) {
-                moveDown = true;
-            }
-
-            if (Math.random() < 0.002 * level + 0.002) {
-                alienBullets.push({
-                    x: a.x,
-                    y: a.y + a.size,
-                    width: 4,
-                    height: 10
-                });
-            }
-        });
-
-        if (moveDown) {
-            alienDirection *= -1;
-            aliens.forEach(a => {
-                a.y += 20;
-                a.x += alienSpeed * alienDirection;
-            });
-        }
-
-        // Check Level Complete
-        if (aliens.length === 0) {
-            nextLevel();
-        }
-
-        aliens.forEach(a => {
-            if (a.y + a.size > player.y) {
-                 gameOver();
-            }
-        });
-    }
-
-    // Common Updates (Projectiles, Particles)
-
-    // Update Mega Bombs
-    for (let i = megaBombs.length - 1; i >= 0; i--) {
-        let b = megaBombs[i];
-        b.y -= 4;
-
-        if (b.y < 0) {
-            damageExplosions.push({ x: b.x, y: b.y, radius: 10, life: 20 });
-            megaBombs.splice(i, 1);
-            continue;
-        }
-
-        // Collision vs Aliens
-        if (!boss) {
-            let hit = false;
-            for (let j = aliens.length - 1; j >= 0; j--) {
-                let a = aliens[j];
-                let dx = b.x - a.x;
-                let dy = b.y - a.y;
-                let dist = Math.sqrt(dx*dx + dy*dy);
-
-                if (dist < a.size + b.size) {
-                    damageExplosions.push({ x: b.x, y: b.y, radius: 10, life: 20 });
-                    megaBombs.splice(i, 1);
-                    hit = true;
-                    break;
-                }
-            }
-        }
-    }
-
-    // Update Damage Explosions
-    for (let i = damageExplosions.length - 1; i >= 0; i--) {
-        let e = damageExplosions[i];
-        e.radius += 5;
-        e.life--;
-
-        if (!boss) {
-            for (let j = aliens.length - 1; j >= 0; j--) {
-                let a = aliens[j];
-                let dx = e.x - a.x;
-                let dy = e.y - a.y;
-                let dist = Math.sqrt(dx*dx + dy*dy);
-
-                if (dist < e.radius + a.size) {
-                    createExplosion(a.x, a.y);
-                     if (Math.random() < 0.1) {
-                        const type = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
-                        powerups.push({
-                            x: a.x, y: a.y, type: type.type, color: type.color, label: type.label
-                        });
-                    }
-                    aliens.splice(j, 1);
-                    score += 100;
-                }
-            }
-        }
-
-        if (e.life <= 0) {
-            damageExplosions.splice(i, 1);
-        }
-    }
-
-    // Update Alien Bullets
-    for (let i = alienBullets.length - 1; i >= 0; i--) {
-        let b = alienBullets[i];
-
-        if (b.vx !== undefined && b.vy !== undefined) {
-            b.x += b.vx;
-            b.y += b.vy;
-        } else {
-            b.y += 5;
-        }
-
-        if (b.y > canvas.height || b.y < 0 || b.x < 0 || b.x > canvas.width) {
-            alienBullets.splice(i, 1);
-            continue;
-        }
-
-        if (
-            b.x < player.x + player.width &&
-            b.x + b.width > player.x &&
-            b.y < player.y + player.height &&
-            b.y + b.height > player.y
-        ) {
-            if (player.invincible) {
-                alienBullets.splice(i, 1);
-            } else if (player.shield) {
-                player.shield = false;
-                alienBullets.splice(i, 1);
-            } else {
-                lives--;
-                alienBullets.splice(i, 1);
-                if (lives <= 0) {
-                    gameOver();
-                }
-            }
-        }
-    }
-
-    // Update Powerups
-    for (let i = powerups.length - 1; i >= 0; i--) {
-        let p = powerups[i];
-        p.y += 3;
-
-        if (p.y > canvas.height) {
-            powerups.splice(i, 1);
-            continue;
-        }
-
-        if (
-            p.x < player.x + player.width &&
-            p.x + 20 > player.x &&
-            p.y < player.y + player.height &&
-            p.y + 20 > player.y
-        ) {
-            if (p.type === 'HEALTH') {
-                lives = Math.min(lives + 1, 5);
-            } else if (p.type === 'SHIELD') {
-                player.shield = true;
-            } else if (p.type === 'RAPID_FIRE') {
-                player.rapidFireTimer = 300;
-            }
-            powerups.splice(i, 1);
-        }
-    }
-
-    // Update Bullets
-    for (let i = bullets.length - 1; i >= 0; i--) {
-        let b = bullets[i];
-        b.y -= 8;
-
-        if (b.y < 0) {
-            bullets.splice(i, 1);
-            continue;
-        }
-
-        if (!boss) {
-            let hit = false;
-            for (let j = aliens.length - 1; j >= 0; j--) {
-                let a = aliens[j];
-                if (
-                    b.x > a.x - a.size &&
-                    b.x < a.x + a.size &&
-                    b.y > a.y - a.size &&
-                    b.y < a.y + a.size
-                ) {
-                    createExplosion(a.x, a.y);
-
-                    if (Math.random() < 0.1) {
-                        const type = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
-                        powerups.push({
-                            x: a.x, y: a.y, type: type.type, color: type.color, label: type.label
-                        });
-                    }
-
-                    aliens.splice(j, 1);
-                    score += 100;
-                    hit = true;
-                    break;
-                }
-            }
-            if (hit) bullets.splice(i, 1);
-        }
-    }
-
-    // Update particles
-    for (let i = particles.length - 1; i >= 0; i--) {
-        let p = particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.life--;
-        if (p.life <= 0) particles.splice(i, 1);
-    }
-
-    aliens.forEach(a => a.angle += 0.05);
+  });
 }
 
-function nextLevel() {
-    level++;
-    alienSpeed += 0.5;
-    bullets = [];
-    powerups = [];
-    alienBullets = [];
-    megaBombs = [];
-    damageExplosions = [];
-
-    if (level % 2 === 0) {
-        initBoss();
-    } else {
-        alienDirection = 1;
-        initAliens();
-    }
+function resetGame() {
+  turn = "white";
+  document.getElementById("turn").textContent = "Tour : Blanc";
+  initBoard();
+  render();
 }
 
-/* ==========================
-   RENDER
-========================== */
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Joueur
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = player.invincible ? "#ffd700" : "#ff0000";
-    ctx.fillStyle = player.invincible ? "#ffff00" : "#bbbbbb";
-
-    if (player.shield) {
-        ctx.strokeStyle = "#0000ff";
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(player.x + player.width/2, player.y + player.height/2, 30, 0, Math.PI * 2);
-        ctx.stroke();
-    }
-
-    if (player.rapidFireTimer > 0) {
-        ctx.shadowColor = "#ffff00";
-    }
-
-    if (player.charge > 0) {
-        ctx.shadowColor = `rgba(255, 100, 0, ${player.charge/60})`;
-        ctx.shadowBlur = 10 + (player.charge/2);
-    }
-
-    ctx.fillRect(player.x, player.y, player.width, player.height);
-    ctx.fillRect(player.x + 15, player.y - 10, 10, 10);
-
-    ctx.fillStyle = player.rapidFireTimer > 0 ? "#ffff00" : "#ff4400";
-    bullets.forEach(b => ctx.fillRect(b.x - 2, b.y, 4, 12));
-
-    ctx.fillStyle = "#ffaa00";
-    ctx.shadowColor = "#ff0000";
-    megaBombs.forEach(b => {
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
-        ctx.fill();
-    });
-
-    damageExplosions.forEach(e => {
-        ctx.fillStyle = `rgba(255, 50, 0, ${e.life/20})`;
-        ctx.beginPath();
-        ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
-        ctx.fill();
-    });
-
-    ctx.fillStyle = "#00ff00";
-    ctx.shadowColor = "#00ff00";
-    alienBullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
-
-    powerups.forEach(p => {
-        ctx.fillStyle = p.color;
-        ctx.shadowColor = p.color;
-        ctx.fillRect(p.x - 10, p.y - 10, 20, 20);
-
-        ctx.fillStyle = "black";
-        ctx.font = "bold 15px Courier New";
-        ctx.fillText(p.label, p.x - 5, p.y + 5);
-    });
-
-    // Draw Boss
-    if (boss) {
-        drawBoss();
-    } else {
-        // Draw Aliens
-        aliens.forEach(a => {
-            ctx.save();
-            ctx.translate(a.x, a.y);
-            ctx.rotate(a.angle * 0.2);
-
-            ctx.shadowColor = "#330000";
-            ctx.shadowBlur = 10;
-
-            ctx.fillStyle = "#eeeeee";
-            ctx.beginPath();
-            ctx.arc(0, -5, a.size, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.fillStyle = "#000";
-            ctx.beginPath();
-            ctx.arc(-8, -5, 6, 0, Math.PI * 2);
-            ctx.arc(8, -5, 6, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.beginPath();
-            ctx.moveTo(0, 2);
-            ctx.lineTo(-3, 8);
-            ctx.lineTo(3, 8);
-            ctx.fill();
-
-            ctx.restore();
-        });
-    }
-
-    particles.forEach(p => {
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = p.color;
-        ctx.globalAlpha = p.life / 40;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 2, 0, Math.PI*2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-    });
-
-    document.getElementById("score").textContent = score;
-    document.getElementById("lives").textContent = lives;
-    document.getElementById("level").textContent = level;
-
-    if (isPaused) {
-        ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        ctx.fillStyle = "white";
-        ctx.font = "bold 40px 'Courier New', monospace";
-        ctx.textAlign = "center";
-        ctx.shadowColor = "red";
-        ctx.shadowBlur = 10;
-        ctx.fillText("PAUSE", canvas.width / 2, canvas.height / 2);
-        ctx.textAlign = "start"; // reset to default
-    }
-}
-
-function gameOver() {
-    gameRunning = false;
-    document.getElementById("gameOver").style.display = "flex";
-}
-
-function restart() {
-    location.reload();
-}
-
-function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
-}
-
-// Start with aliens
-initAliens();
-loop();
+initBoard();
+render();
 </script>
-
 </body>
 </html>
