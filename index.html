@@ -166,6 +166,15 @@ function clickSquare(x, y, el) {
     if (isLegal(selected.x, selected.y, x, y)) {
       boardState[y][x] = boardState[selected.y][selected.x];
       boardState[selected.y][selected.x] = ".";
+
+      // Auto-promotion Pawn -> Queen
+      const movedPiece = boardState[y][x];
+      if (movedPiece.toLowerCase() === 'p') {
+          if ((movedPiece === 'P' && y === 0) || (movedPiece === 'p' && y === 7)) {
+              boardState[y][x] = movedPiece === 'P' ? 'Q' : 'q';
+          }
+      }
+
       turn = turn === "white" ? "black" : "white";
       document.getElementById("turn").textContent =
         "Tour : " + (turn === "white" ? "Blanc" : "Noir");
@@ -182,20 +191,89 @@ function clickSquare(x, y, el) {
 }
 
 function isTurnPiece(p) {
+  if (p === ".") return false;
   return turn === "white" ? p === p.toUpperCase() : p === p.toLowerCase();
+}
+
+function isSameColor(p1, p2) {
+  if (p1 === "." || p2 === ".") return false;
+  const isP1White = p1 === p1.toUpperCase();
+  const isP2White = p2 === p2.toUpperCase();
+  return isP1White === isP2White;
+}
+
+function isPathClear(sx, sy, tx, ty) {
+  const dx = Math.sign(tx - sx);
+  const dy = Math.sign(ty - sy);
+
+  let x = sx + dx;
+  let y = sy + dy;
+
+  while (x !== tx || y !== ty) {
+    if (boardState[y][x] !== ".") return false;
+    x += dx;
+    y += dy;
+  }
+  return true;
 }
 
 function isLegal(sx, sy, tx, ty) {
   const p = boardState[sy][sx];
+  const target = boardState[ty][tx];
+
   if (!isTurnPiece(p)) return false;
   if (sx === tx && sy === ty) return false;
-  return true; // logique simplifiée volontaire (pédagogique)
+  if (target !== "." && isSameColor(p, target)) return false;
+
+  const dx = tx - sx;
+  const dy = ty - sy;
+  const adx = Math.abs(dx);
+  const ady = Math.abs(dy);
+  const type = p.toLowerCase();
+  const isWhite = p === p.toUpperCase();
+
+  switch (type) {
+    case 'p': // Pawn
+      const direction = isWhite ? -1 : 1;
+      const startRow = isWhite ? 6 : 1;
+
+      // Move forward 1
+      if (dx === 0 && dy === direction && target === ".") return true;
+
+      // Move forward 2
+      if (dx === 0 && dy === direction * 2 && sy === startRow && target === "." && boardState[sy + direction][sx] === ".") return true;
+
+      // Capture
+      if (adx === 1 && dy === direction && target !== "." && !isSameColor(p, target)) return true;
+
+      return false;
+
+    case 'r': // Rook
+      if (dx !== 0 && dy !== 0) return false;
+      return isPathClear(sx, sy, tx, ty);
+
+    case 'b': // Bishop
+      if (adx !== ady) return false;
+      return isPathClear(sx, sy, tx, ty);
+
+    case 'q': // Queen
+      if ((dx !== 0 && dy !== 0) && (adx !== ady)) return false;
+      return isPathClear(sx, sy, tx, ty);
+
+    case 'n': // Knight
+      return (adx === 2 && ady === 1) || (adx === 1 && ady === 2);
+
+    case 'k': // King
+      return adx <= 1 && ady <= 1;
+  }
+
+  return false;
 }
 
 function highlightMoves(x, y) {
   render();
   document.querySelectorAll(".square").forEach(s => {
-    if (isLegal(x, y, s.dataset.x, s.dataset.y)) {
+    if (isLegal(x, y, parseInt(s.dataset.x), parseInt(s.dataset.y))) {
       s.classList.add("move");
     }
   });
