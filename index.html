@@ -30,13 +30,20 @@
         font-size: 48px;
         text-align: center;
         text-shadow: 0 0 20px white;
-        display: none;
     }
 
     .overlay small {
         font-size: 20px;
         margin-top: 20px;
         opacity: 0.7;
+    }
+
+    .controls {
+        font-size: 24px;
+        margin-top: 30px;
+        line-height: 1.5;
+        color: #ddd;
+        text-shadow: none;
     }
 </style>
 </head>
@@ -45,8 +52,14 @@
 <canvas id="game" width="900" height="500"></canvas>
 
 <div id="overlay" class="overlay">
-    <div id="result"></div>
-    <small>Appuyez sur ESPACE pour rejouer</small>
+    <div id="result">PONG NEON</div>
+
+    <div class="controls">
+        <div><strong>Joueur 1</strong> : Z (Haut) / S (Bas)</div>
+        <div><strong>Joueur 2</strong> : P (Haut) / M (Bas)</div>
+    </div>
+
+    <small>Appuyez sur ESPACE pour jouer</small>
 </div>
 
 <script>
@@ -94,7 +107,10 @@ document.addEventListener("keydown", e => {
     keys[e.key] = true;
 
     if (e.code === "Space") {
-        if (!gameRunning && !gameOver) gameRunning = true;
+        if (!gameRunning && !gameOver) {
+            gameRunning = true;
+            overlay.style.display = "none";
+        }
         if (gameOver) restartGame();
     }
 });
@@ -119,7 +135,7 @@ function restartGame() {
     player1.score = 0;
     player2.score = 0;
     gameOver = false;
-    gameRunning = false;
+    gameRunning = true;
     overlay.style.display = "none";
     ball = resetBall();
 }
