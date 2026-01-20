@@ -122,6 +122,14 @@ body {
   line-height: 1.5;
 }
 
+.btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-top: auto;
+}
+
 button {
   width: 100%;
   padding: 12px;
@@ -131,7 +139,6 @@ button {
   color: #000;
   font-weight: bold;
   cursor: pointer;
-  margin-top: auto;
 }
 
 button:hover {
@@ -183,7 +190,10 @@ button:hover {
     <h1>FORTNITE CHESS</h1>
     <div class="status" id="status">Tour : Blanc</div>
     <div id="checkMsg" style="color: var(--neon-red); text-align: center; font-weight: bold; height: 24px;"></div>
-    <button onclick="initGame()">Nouvelle partie</button>
+    <div class="btn-group">
+      <button onclick="initGame('pvp')">Joueur vs Joueur</button>
+      <button onclick="initGame('pve')">Joueur vs Bot</button>
+    </div>
   </div>
 </div>
 
@@ -204,9 +214,11 @@ let history = [];
 let legalMoves = [];
 let promoting = null; // {from, to} si en cours de promotion
 let gameOver = false;
+let gameMode = 'pvp'; // 'pvp' | 'pve'
 
 // Initialisation
-function initGame() {
+function initGame(mode) {
+  gameMode = mode || 'pvp';
   board = [
     ['r','n','b','q','k','b','n','r'],
     ['p','p','p','p','p','p','p','p'],
@@ -308,6 +320,7 @@ let selectedSquare = null;
 function handleClick(x, y) {
   if (gameOver) return;
   if (promoting) return;
+  if (gameMode === 'pve' && turn === 'black') return;
 
   const p = board[y][x];
   const isOwnPiece = p !== '.' && (turn === 'white' ? p === p.toUpperCase() : p === p.toLowerCase());
@@ -367,6 +380,25 @@ function executeMove(move) {
   turn = turn === 'white' ? 'black' : 'white';
   updateGameState();
   render();
+
+  if (!gameOver && gameMode === 'pve' && turn === 'black') {
+    setTimeout(playBot, 500);
+  }
+}
+
+function playBot() {
+  if (gameOver) return;
+
+  // legalMoves is already updated by updateGameState()
+  if (legalMoves.length === 0) return;
+
+  const randomMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+
+  if (randomMove.promotion) {
+    randomMove.promotionPiece = 'q'; // Bot promotes to Queen
+  }
+
+  executeMove(randomMove);
 }
 
 /* =========================================
