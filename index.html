@@ -182,25 +182,31 @@ const BOSS_PHASE = {
     HOVER: 0,
     CHARGE_TELL: 1,
     CHARGE: 2,
-    RETURN: 3
+    RETURN: 3,
+    SHIELD: 4,
+    LASER_CHARGE: 5,
+    LASER_FIRE: 6
 };
 
 function initBoss() {
     aliens = [];
     alienBullets = [];
+    const isMega = (level === 6);
     boss = {
-        x: canvas.width / 2 - 40,
+        x: canvas.width / 2 - (isMega ? 60 : 40),
         y: 60,
-        width: 80,
-        height: 100,
-        hp: 100 * (level * 0.5),
-        maxHp: 100 * (level * 0.5),
+        width: isMega ? 120 : 80,
+        height: isMega ? 140 : 100,
+        hp: isMega ? 800 : 100 * (level * 0.5),
+        maxHp: isMega ? 800 : 100 * (level * 0.5),
         phase: BOSS_PHASE.HOVER,
         timer: 0,
         vx: 3,
         vy: 0,
         targetX: 0,
-        targetY: 0
+        targetY: 0,
+        isMega: isMega,
+        bonusTimer: 0
     };
 }
 
@@ -208,6 +214,17 @@ function updateBoss() {
     if (!boss) return;
 
     boss.timer++;
+    boss.bonusTimer++;
+
+    // MEGA BOSS BONUS DROP
+    if (boss.isMega && boss.bonusTimer % 300 === 0) {
+        const type = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+        powerups.push({
+            x: boss.x + boss.width/2,
+            y: boss.y + boss.height,
+            type: type.type, color: type.color, label: type.label
+        });
+    }
 
     if (boss.phase === BOSS_PHASE.HOVER) {
         // Move side to side
@@ -232,9 +249,53 @@ function updateBoss() {
             });
         }
 
-        // Switch to Charge
-        if (boss.timer > 300) {
-            boss.phase = BOSS_PHASE.CHARGE_TELL;
+        // Switch Phase
+        if (boss.isMega) {
+            if (boss.timer > 200) {
+                boss.phase = BOSS_PHASE.SHIELD;
+                boss.timer = 0;
+            }
+        } else {
+            if (boss.timer > 300) {
+                boss.phase = BOSS_PHASE.CHARGE_TELL;
+                boss.timer = 0;
+            }
+        }
+
+    } else if (boss.phase === BOSS_PHASE.SHIELD) {
+        // MEGA BOSS ONLY: Blocking
+        if (boss.timer > 180) { // 3 seconds
+            boss.phase = BOSS_PHASE.LASER_CHARGE;
+            boss.timer = 0;
+        }
+
+    } else if (boss.phase === BOSS_PHASE.LASER_CHARGE) {
+        // Track player slightly
+        if (boss.timer < 60) {
+            boss.x += (player.x - (boss.x + boss.width/2)) * 0.05;
+        }
+        if (boss.timer > 90) { // 1.5s charge
+            boss.phase = BOSS_PHASE.LASER_FIRE;
+            boss.timer = 0;
+        }
+
+    } else if (boss.phase === BOSS_PHASE.LASER_FIRE) {
+        // Huge Beam
+        let beamW = boss.width * 0.6;
+        let beamX = boss.x + boss.width/2 - beamW/2;
+
+        // Beam Collision
+        if (player.x < beamX + beamW && player.x + player.width > beamX) {
+             if (!player.invincible && !player.shield) {
+                 lives--;
+                 if (lives <= 0) gameOver();
+             } else if (player.shield) {
+                 player.shield = false; // Laser breaks shield instantly
+             }
+        }
+
+        if (boss.timer > 60) { // 1 sec laser
+            boss.phase = BOSS_PHASE.RETURN;
             boss.timer = 0;
         }
 
@@ -284,6 +345,14 @@ function updateBoss() {
         if (b.x > boss.x && b.x < boss.x + boss.width &&
             b.y > boss.y && b.y < boss.y + boss.height) {
 
+            // SHIELD BLOCK
+            if (boss.phase === BOSS_PHASE.SHIELD) {
+                // Ricochet / Block effect
+                createExplosion(b.x, b.y); // Visual only
+                bullets.splice(i, 1);
+                continue;
+            }
+
             boss.hp -= 1;
             createExplosion(b.x, b.y);
             bullets.splice(i, 1);
@@ -295,6 +364,12 @@ function updateBoss() {
         let b = megaBombs[i];
          if (b.x > boss.x && b.x < boss.x + boss.width &&
             b.y > boss.y && b.y < boss.y + boss.height) {
+
+            if (boss.phase === BOSS_PHASE.SHIELD) {
+                 createExplosion(b.x, b.y);
+                 megaBombs.splice(i, 1);
+                 continue;
+            }
 
             boss.hp -= 10;
             damageExplosions.push({ x: b.x, y: b.y, radius: 10, life: 20 });
@@ -308,7 +383,9 @@ function updateBoss() {
         let dy = e.y - (boss.y + boss.height/2);
         let dist = Math.sqrt(dx*dx + dy*dy);
         if (dist < e.radius + boss.width/2 && e.life % 5 === 0) {
-             boss.hp -= 0.5;
+             if (boss.phase !== BOSS_PHASE.SHIELD) {
+                boss.hp -= 0.5;
+             }
         }
     }
 
@@ -342,23 +419,61 @@ function updateBoss() {
 function drawBoss() {
     if (!boss) return;
 
+    // LASER DRAWING
+    if (boss.phase === BOSS_PHASE.LASER_CHARGE) {
+        let beamW = boss.width * 0.6;
+        let beamX = boss.x + boss.width/2 - beamW/2;
+        ctx.fillStyle = `rgba(255, 0, 0, 0.3)`;
+        ctx.fillRect(beamX, boss.y + boss.height, beamW, canvas.height);
+
+        ctx.beginPath();
+        ctx.arc(boss.x + boss.width/2, boss.y + boss.height/2, 60 * (boss.timer/90), 0, Math.PI*2);
+        ctx.strokeStyle = "red";
+        ctx.stroke();
+    }
+    else if (boss.phase === BOSS_PHASE.LASER_FIRE) {
+        let beamW = boss.width * 0.6;
+        let beamX = boss.x + boss.width/2 - beamW/2;
+
+        ctx.shadowBlur = 30;
+        ctx.shadowColor = "red";
+        ctx.fillStyle = "#ffcccc";
+        ctx.fillRect(beamX, boss.y + boss.height, beamW, canvas.height);
+
+        ctx.fillStyle = "white";
+        ctx.fillRect(beamX + 10, boss.y + boss.height, beamW - 20, canvas.height);
+        ctx.shadowBlur = 0;
+    }
+
     ctx.save();
     ctx.translate(boss.x + boss.width/2, boss.y + boss.height/2);
 
-    if (boss.phase === BOSS_PHASE.CHARGE_TELL) {
+    if (boss.phase === BOSS_PHASE.CHARGE_TELL || boss.phase === BOSS_PHASE.LASER_CHARGE) {
          ctx.translate((Math.random()-0.5)*5, (Math.random()-0.5)*5);
     }
 
     // Boss Visual: Big Skull
-    ctx.shadowColor = "#ff0000";
+    ctx.shadowColor = boss.isMega ? "#aa00ff" : "#ff0000";
     ctx.shadowBlur = 20;
 
-    ctx.fillStyle = "#eeeeee";
+    // Shield
+    if (boss.phase === BOSS_PHASE.SHIELD) {
+        ctx.beginPath();
+        ctx.arc(0, 0, boss.width, 0, Math.PI*2);
+        ctx.strokeStyle = "cyan";
+        ctx.lineWidth = 5;
+        ctx.shadowColor = "cyan";
+        ctx.stroke();
+        ctx.fillStyle = "rgba(0, 255, 255, 0.2)";
+        ctx.fill();
+    }
+
+    ctx.fillStyle = boss.isMega ? "#ccbbff" : "#eeeeee";
     ctx.beginPath();
-    ctx.arc(0, -10, 40, 0, Math.PI*2);
+    ctx.arc(0, -10, boss.width/2, 0, Math.PI*2);
     ctx.fill();
 
-    ctx.fillRect(-25, 10, 50, 40); // Jaw
+    ctx.fillRect(-boss.width*0.3, 10, boss.width*0.6, 40); // Jaw
 
     ctx.fillStyle = "#000";
     ctx.beginPath();
@@ -367,7 +482,7 @@ function drawBoss() {
     ctx.fill();
 
     // Glowing eyes
-    ctx.fillStyle = "#ff0000";
+    ctx.fillStyle = boss.phase === BOSS_PHASE.LASER_FIRE ? "#ffffff" : "#ff0000";
     ctx.beginPath();
     ctx.arc(-15, -10, 4, 0, Math.PI*2);
     ctx.arc(15, -10, 4, 0, Math.PI*2);
@@ -378,7 +493,7 @@ function drawBoss() {
     // Health Bar
     ctx.fillStyle = "#330000";
     ctx.fillRect(boss.x, boss.y - 30, boss.width, 10);
-    ctx.fillStyle = "#ff0000";
+    ctx.fillStyle = boss.isMega ? "#aa00ff" : "#ff0000";
     ctx.fillRect(boss.x, boss.y - 30, boss.width * (Math.max(0, boss.hp) / boss.maxHp), 10);
     ctx.strokeStyle = "#fff";
     ctx.strokeRect(boss.x, boss.y - 30, boss.width, 10);
