@@ -40,6 +40,36 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const info = document.getElementById("info");
 
+// ===== AUDIO (Synthétiseur) =====
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+const Sound = {
+    playTone: (freq, type, duration) => {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    },
+    jump: () => Sound.playTone(400, 'sine', 0.1),
+    score: () => Sound.playTone(1000, 'square', 0.1),
+    die: () => {
+        Sound.playTone(100, 'sawtooth', 0.5);
+        setTimeout(() => Sound.playTone(80, 'sawtooth', 0.5), 100);
+    },
+    boss: () => {
+        Sound.playTone(150, 'sawtooth', 0.3);
+        setTimeout(() => Sound.playTone(120, 'sawtooth', 0.3), 300);
+        setTimeout(() => Sound.playTone(150, 'sawtooth', 0.3), 600);
+    }
+};
+
 // ===== ÉTAT DU JEU =====
 // Utilisation de var pour exposition globale (testing)
 var gameStarted = false;
@@ -111,6 +141,7 @@ function flap() {
     }
     if (!gameOver) {
         bird.velocity = bird.jump;
+        Sound.jump();
     } else {
         resetGame();
     }
@@ -267,6 +298,7 @@ function update() {
     // Apparition tous les 100 points
     if (score > 0 && score % 100 === 0 && !boss.active && pipeTimer === 0) {
         boss.active = true;
+        Sound.boss();
         boss.x = canvas.width - 50;
         boss.y = canvas.height / 2;
         boss.timer = 0;
@@ -407,6 +439,7 @@ function update() {
         // Score
         if (!p.passed && p.x + pipeWidth < bird.x) {
             score++;
+            Sound.score();
             p.passed = true;
         }
     });
@@ -418,6 +451,7 @@ function update() {
 }
 
 function endGame() {
+    if (!gameOver) Sound.die();
     gameOver = true;
     info.textContent = "Game Over – Clique ou ESPACE pour rejouer";
 }
