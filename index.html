@@ -235,24 +235,26 @@ function updateGameState() {
   const statusEl = document.getElementById('status');
   const checkMsg = document.getElementById('checkMsg');
 
-  if (legalMoves.length === 0) {
-    if (isInCheck(turn)) {
-      statusEl.textContent = `ÉCHEC ET MAT !\n${turn === 'white' ? 'Noirs' : 'Blancs'} gagnent`;
-      checkMsg.textContent = "☠️";
-      Sounds.win();
-    } else {
-      statusEl.textContent = "PAT (Match Nul)";
-      checkMsg.textContent = "🤝";
+  // Vérifier conditions de victoire (Antichess)
+  // 1. Plus de pièces
+  let piecesCount = 0;
+  for(let row of board) {
+    for(let cell of row) {
+      if (cell !== '.' && getPieceColor(cell) === turn) {
+        piecesCount++;
+      }
     }
+  }
+
+  // Victoire si : 0 pièces OU 0 coups légaux (Pat = victoire)
+  if (piecesCount === 0 || legalMoves.length === 0) {
+    statusEl.textContent = `VICTOIRE !\n${turn === 'white' ? 'Blancs' : 'Noirs'} gagnent (Suicide réussi)`;
+    checkMsg.textContent = "🏆";
+    Sounds.win();
     gameOver = true;
   } else {
     statusEl.textContent = `Tour : ${turn === 'white' ? 'Blanc' : 'Noir'}`;
-    if (isInCheck(turn)) {
-      checkMsg.textContent = "⚔️ ÉCHEC !";
-      Sounds.check();
-    } else {
-      checkMsg.textContent = "";
-    }
+    checkMsg.textContent = "Objectif : Perdre toutes les pièces";
   }
 }
 
@@ -294,14 +296,6 @@ function render() {
         }
       }
 
-      // Highlight King in check
-      if (p.toLowerCase() === 'k') {
-        const isWhite = p === 'K';
-        if ((isWhite && turn === 'white' && isInCheck('white')) ||
-            (!isWhite && turn === 'black' && isInCheck('black'))) {
-          sq.classList.add('check');
-        }
-      }
 
       sq.onclick = () => handleClick(x, y);
       boardEl.appendChild(sq);
@@ -357,35 +351,10 @@ function executeMove(move) {
   board[move.to.y][move.to.x] = move.promotion ? move.promotionPiece : p;
   board[move.from.y][move.from.x] = '.';
 
-  // Roque
-  if (move.castle) {
-    if (move.castle === 'k') { // Petit roque
-      board[move.from.y][5] = board[move.from.y][7]; // Tour bouge
-      board[move.from.y][7] = '.';
-    } else if (move.castle === 'q') { // Grand roque
-      board[move.from.y][3] = board[move.from.y][0];
-      board[move.from.y][0] = '.';
-    }
-  }
-
   // En Passant
   if (move.enPassant) {
     board[move.from.y][move.to.x] = '.'; // Capture le pion adverse
   }
-
-  // Mettre à jour droits Roque
-  if (p === 'K') { castling.white.k = false; castling.white.q = false; }
-  if (p === 'k') { castling.black.k = false; castling.black.q = false; }
-  if (p === 'R') {
-    if (move.from.x === 0 && move.from.y === 7) castling.white.q = false;
-    if (move.from.x === 7 && move.from.y === 7) castling.white.k = false;
-  }
-  if (p === 'r') {
-    if (move.from.x === 0 && move.from.y === 0) castling.black.q = false;
-    if (move.from.x === 7 && move.from.y === 0) castling.black.k = false;
-  }
-  // Si une tour est capturée, on perd le droit de roquer de ce côté
-  // (Simplification: un moteur complet le vérifierait, ici on laisse couler pour l'instant sauf cas critique)
 
   // Mettre à jour En Passant target
   if (p.toLowerCase() === 'p' && Math.abs(move.from.y - move.to.y) === 2) {
@@ -414,22 +383,19 @@ function generateAllLegalMoves(color) {
       }
     }
   }
-  // Filtrer les coups qui laissent le roi en échec
-  return moves.filter(m => {
-    // Simuler
-    const backup = cloneBoard(board);
-    // Move simple simulation logic (sans side effects like castling rights update)
-    board[m.to.y][m.to.x] = m.promotion ? (color === 'white' ? 'Q' : 'q') : board[m.from.y][m.from.x]; // Assume Queen for check test
-    board[m.from.y][m.from.x] = '.';
-    if (m.enPassant) board[m.from.y][m.to.x] = '.';
 
-    // King position might have changed
-    const kingInCheck = isInCheck(color);
-
-    // Restore
-    board = backup;
-    return !kingInCheck;
+  // Règle Antichess : Capture Obligatoire
+  // Vérifier s'il y a des captures
+  const captures = moves.filter(m => {
+    const target = board[m.to.y][m.to.x];
+    return target !== '.' || m.enPassant;
   });
+
+  if (captures.length > 0) {
+    return captures;
+  }
+
+  return moves;
 }
 
 function getMovesForPiece(x, y, p) {
@@ -512,26 +478,6 @@ function getMovesForPiece(x, y, p) {
     }
   }
 
-  // Roque
-  if (type === 'k' && !isInCheck(color)) {
-    const rights = color === 'white' ? castling.white : castling.black;
-    const row = color === 'white' ? 7 : 0;
-
-    // Petit Roque
-    if (rights.k && board[row][5] === '.' && board[row][6] === '.') {
-      if (!isSquareAttacked(5, row, getOppositeColor(color)) &&
-          !isSquareAttacked(6, row, getOppositeColor(color))) {
-        addMove(6, row, {castle: 'k'});
-      }
-    }
-    // Grand Roque
-    if (rights.q && board[row][1] === '.' && board[row][2] === '.' && board[row][3] === '.') {
-      if (!isSquareAttacked(2, row, getOppositeColor(color)) &&
-          !isSquareAttacked(3, row, getOppositeColor(color))) {
-        addMove(2, row, {castle: 'q'});
-      }
-    }
-  }
 
   return moves;
 }
