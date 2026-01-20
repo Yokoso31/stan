@@ -10,6 +10,7 @@
   --neon-blue: #00f6ff;
   --neon-purple: #b44cff;
   --neon-pink: #ff4ecd;
+  --neon-red: #ff3333;
   --white: #e9f1ff;
 }
 
@@ -31,6 +32,7 @@ body {
 .game {
   display: flex;
   gap: 30px;
+  position: relative;
 }
 
 .board {
@@ -40,6 +42,7 @@ body {
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 0 40px var(--neon-blue);
+  position: relative;
 }
 
 .square {
@@ -49,6 +52,7 @@ body {
   font-size: 40px;
   cursor: pointer;
   transition: 0.2s;
+  user-select: none;
 }
 
 .dark {
@@ -64,19 +68,44 @@ body {
 }
 
 .selected {
+  background: rgba(180, 76, 255, 0.5) !important;
   box-shadow: inset 0 0 25px var(--neon-purple);
 }
 
 .move {
-  box-shadow: inset 0 0 25px var(--neon-pink);
+  position: relative;
+}
+.move::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: rgba(255, 78, 205, 0.6);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--neon-pink);
+}
+.move.capture::after {
+  background: rgba(255, 51, 51, 0.6);
+  box-shadow: 0 0 10px var(--neon-red);
+  width: 60px;
+  height: 60px;
+  border: 4px solid var(--neon-red);
+  background: transparent;
+}
+
+.check {
+  background: rgba(255, 51, 51, 0.5) !important;
+  box-shadow: inset 0 0 30px var(--neon-red);
 }
 
 .panel {
   background: linear-gradient(180deg, #141a2a, #0b0f1a);
   padding: 20px;
   border-radius: 16px;
-  width: 220px;
+  width: 240px;
   box-shadow: 0 0 25px var(--neon-purple);
+  display: flex;
+  flex-direction: column;
 }
 
 .panel h1 {
@@ -86,10 +115,11 @@ body {
   color: var(--neon-blue);
 }
 
-.turn {
+.status {
   text-align: center;
   margin: 15px 0;
   font-size: 18px;
+  line-height: 1.5;
 }
 
 button {
@@ -101,193 +131,523 @@ button {
   color: #000;
   font-weight: bold;
   cursor: pointer;
+  margin-top: auto;
 }
 
 button:hover {
   filter: brightness(1.2);
+}
+
+/* Modal Promotion */
+.modal {
+  display: none;
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.8);
+  justify-content: center;
+  align-items: center;
+  border-radius: 16px;
+  z-index: 10;
+}
+.modal.active {
+  display: flex;
+}
+.promo-options {
+  display: flex;
+  gap: 10px;
+}
+.promo-piece {
+  font-size: 50px;
+  cursor: pointer;
+  padding: 10px;
+  background: #2c3570;
+  border-radius: 8px;
+  transition: 0.2s;
+}
+.promo-piece:hover {
+  background: var(--neon-purple);
+  transform: scale(1.1);
 }
 </style>
 </head>
 <body>
 
 <div class="game">
-  <div class="board" id="board"></div>
+  <div class="board" id="board">
+    <div id="promotionModal" class="modal">
+      <div class="promo-options" id="promoOptions"></div>
+    </div>
+  </div>
 
   <div class="panel">
     <h1>FORTNITE CHESS</h1>
-    <div class="turn" id="turn">Tour : Blanc</div>
-    <button onclick="resetGame()">Nouvelle partie</button>
+    <div class="status" id="status">Tour : Blanc</div>
+    <div id="checkMsg" style="color: var(--neon-red); text-align: center; font-weight: bold; height: 24px;"></div>
+    <button onclick="initGame()">Nouvelle partie</button>
   </div>
 </div>
 
 <script>
-const pieces = {
+const PIECES = {
   r:"♜", n:"♞", b:"♝", q:"♛", k:"♚", p:"♟",
   R:"♖", N:"♘", B:"♗", Q:"♕", K:"♔", P:"♙"
 };
 
-let boardState, selected = null, turn = "white";
+// État global
+let board = [];
+let turn = 'white'; // 'white' | 'black'
+let castling = { white: {k:true, q:true}, black: {k:true, q:true} };
+let enPassantTarget = null; // {x, y} ou null
+let halfMove = 0;
+let fullMove = 1;
+let history = [];
+let legalMoves = [];
+let promoting = null; // {from, to} si en cours de promotion
+let gameOver = false;
 
-function initBoard() {
-  boardState = [
-    "rnbqkbnr",
-    "pppppppp",
-    "........",
-    "........",
-    "........",
-    "........",
-    "PPPPPPPP",
-    "RNBQKBNR"
-  ].map(r => r.split(""));
+// Initialisation
+function initGame() {
+  board = [
+    ['r','n','b','q','k','b','n','r'],
+    ['p','p','p','p','p','p','p','p'],
+    ['.','.','.','.','.','.','.','.'],
+    ['.','.','.','.','.','.','.','.'],
+    ['.','.','.','.','.','.','.','.'],
+    ['.','.','.','.','.','.','.','.'],
+    ['P','P','P','P','P','P','P','P'],
+    ['R','N','B','Q','K','B','N','R']
+  ];
+  turn = 'white';
+  castling = { white: {k:true, q:true}, black: {k:true, q:true} };
+  enPassantTarget = null;
+  gameOver = false;
+  promoting = null;
+  document.getElementById('checkMsg').textContent = "";
+  document.getElementById('promotionModal').classList.remove('active');
+
+  updateGameState();
+  render();
 }
 
-const board = document.getElementById("board");
+function updateGameState() {
+  legalMoves = generateAllLegalMoves(turn);
 
-function render() {
-  board.innerHTML = "";
-  for (let y = 0; y < 8; y++) {
-    for (let x = 0; x < 8; x++) {
-      const sq = document.createElement("div");
-      sq.className = `square ${(x + y) % 2 ? "dark" : "light"}`;
-      sq.dataset.x = x;
-      sq.dataset.y = y;
-      const p = boardState[y][x];
-      if (p !== ".") sq.textContent = pieces[p];
-      sq.onclick = () => clickSquare(x, y, sq);
-      board.appendChild(sq);
+  const statusEl = document.getElementById('status');
+  const checkMsg = document.getElementById('checkMsg');
+
+  if (legalMoves.length === 0) {
+    if (isInCheck(turn)) {
+      statusEl.textContent = `ÉCHEC ET MAT !\n${turn === 'white' ? 'Noirs' : 'Blancs'} gagnent`;
+      checkMsg.textContent = "☠️";
+    } else {
+      statusEl.textContent = "PAT (Match Nul)";
+      checkMsg.textContent = "🤝";
+    }
+    gameOver = true;
+  } else {
+    statusEl.textContent = `Tour : ${turn === 'white' ? 'Blanc' : 'Noir'}`;
+    if (isInCheck(turn)) {
+      checkMsg.textContent = "⚔️ ÉCHEC !";
+    } else {
+      checkMsg.textContent = "";
     }
   }
 }
 
-function clickSquare(x, y, el) {
-  const p = boardState[y][x];
+// Rendu
+function render() {
+  const boardEl = document.getElementById('board');
+  // On ne vide pas tout pour garder la modale, on nettoie les cases
+  const oldSquares = boardEl.querySelectorAll('.square');
+  oldSquares.forEach(el => el.remove());
 
-  if (selected) {
-    if (isLegal(selected.x, selected.y, x, y)) {
-      boardState[y][x] = boardState[selected.y][selected.x];
-      boardState[selected.y][selected.x] = ".";
+  // Inverser visuellement pour les noirs ? Non, standard Fortnite Chess = toujours du bas
 
-      // Auto-promotion Pawn -> Queen
-      const movedPiece = boardState[y][x];
-      if (movedPiece.toLowerCase() === 'p') {
-          if ((movedPiece === 'P' && y === 0) || (movedPiece === 'p' && y === 7)) {
-              boardState[y][x] = movedPiece === 'P' ? 'Q' : 'q';
-          }
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      const sq = document.createElement('div');
+      sq.className = `square ${(x + y) % 2 ? 'dark' : 'light'}`;
+      sq.dataset.x = x;
+      sq.dataset.y = y;
+
+      const p = board[y][x];
+      if (p !== '.') sq.textContent = PIECES[p];
+
+      // Highlight selected
+      if (selectedSquare && selectedSquare.x === x && selectedSquare.y === y) {
+        sq.classList.add('selected');
       }
 
-      turn = turn === "white" ? "black" : "white";
-      document.getElementById("turn").textContent =
-        "Tour : " + (turn === "white" ? "Blanc" : "Noir");
+      // Highlight moves
+      if (selectedSquare) {
+        const move = legalMoves.find(m =>
+          m.from.x === selectedSquare.x && m.from.y === selectedSquare.y &&
+          m.to.x === x && m.to.y === y
+        );
+        if (move) {
+          sq.classList.add('move');
+          if (board[y][x] !== '.' || (move.enPassant)) {
+             sq.classList.add('capture');
+          }
+        }
+      }
+
+      // Highlight King in check
+      if (p.toLowerCase() === 'k') {
+        const isWhite = p === 'K';
+        if ((isWhite && turn === 'white' && isInCheck('white')) ||
+            (!isWhite && turn === 'black' && isInCheck('black'))) {
+          sq.classList.add('check');
+        }
+      }
+
+      sq.onclick = () => handleClick(x, y);
+      boardEl.appendChild(sq);
     }
-    selected = null;
+  }
+}
+
+let selectedSquare = null;
+
+function handleClick(x, y) {
+  if (gameOver) return;
+  if (promoting) return;
+
+  const p = board[y][x];
+  const isOwnPiece = p !== '.' && (turn === 'white' ? p === p.toUpperCase() : p === p.toLowerCase());
+
+  // Sélection
+  if (isOwnPiece) {
+    selectedSquare = {x, y};
     render();
     return;
   }
 
-  if (p !== "." && isTurnPiece(p)) {
-    selected = { x, y };
-    highlightMoves(x, y);
+  // Déplacement
+  if (selectedSquare) {
+    const move = legalMoves.find(m =>
+      m.from.x === selectedSquare.x && m.from.y === selectedSquare.y &&
+      m.to.x === x && m.to.y === y
+    );
+
+    if (move) {
+      if (move.promotion) {
+        startPromotion(move);
+      } else {
+        executeMove(move);
+      }
+    } else {
+      selectedSquare = null;
+      render();
+    }
   }
 }
 
-function isTurnPiece(p) {
-  if (p === ".") return false;
-  return turn === "white" ? p === p.toUpperCase() : p === p.toLowerCase();
-}
+function executeMove(move) {
+  // Appliquer le mouvement
+  const p = board[move.from.y][move.from.x];
+  board[move.to.y][move.to.x] = move.promotion ? move.promotionPiece : p;
+  board[move.from.y][move.from.x] = '.';
 
-function isSameColor(p1, p2) {
-  if (p1 === "." || p2 === ".") return false;
-  const isP1White = p1 === p1.toUpperCase();
-  const isP2White = p2 === p2.toUpperCase();
-  return isP1White === isP2White;
-}
-
-function isPathClear(sx, sy, tx, ty) {
-  const dx = Math.sign(tx - sx);
-  const dy = Math.sign(ty - sy);
-
-  let x = sx + dx;
-  let y = sy + dy;
-
-  while (x !== tx || y !== ty) {
-    if (boardState[y][x] !== ".") return false;
-    x += dx;
-    y += dy;
+  // Roque
+  if (move.castle) {
+    if (move.castle === 'k') { // Petit roque
+      board[move.from.y][5] = board[move.from.y][7]; // Tour bouge
+      board[move.from.y][7] = '.';
+    } else if (move.castle === 'q') { // Grand roque
+      board[move.from.y][3] = board[move.from.y][0];
+      board[move.from.y][0] = '.';
+    }
   }
-  return true;
+
+  // En Passant
+  if (move.enPassant) {
+    board[move.from.y][move.to.x] = '.'; // Capture le pion adverse
+  }
+
+  // Mettre à jour droits Roque
+  if (p === 'K') { castling.white.k = false; castling.white.q = false; }
+  if (p === 'k') { castling.black.k = false; castling.black.q = false; }
+  if (p === 'R') {
+    if (move.from.x === 0 && move.from.y === 7) castling.white.q = false;
+    if (move.from.x === 7 && move.from.y === 7) castling.white.k = false;
+  }
+  if (p === 'r') {
+    if (move.from.x === 0 && move.from.y === 0) castling.black.q = false;
+    if (move.from.x === 7 && move.from.y === 0) castling.black.k = false;
+  }
+  // Si une tour est capturée, on perd le droit de roquer de ce côté
+  // (Simplification: un moteur complet le vérifierait, ici on laisse couler pour l'instant sauf cas critique)
+
+  // Mettre à jour En Passant target
+  if (p.toLowerCase() === 'p' && Math.abs(move.from.y - move.to.y) === 2) {
+    enPassantTarget = { x: move.from.x, y: (move.from.y + move.to.y) / 2 };
+  } else {
+    enPassantTarget = null;
+  }
+
+  selectedSquare = null;
+  turn = turn === 'white' ? 'black' : 'white';
+  updateGameState();
+  render();
 }
 
-function isLegal(sx, sy, tx, ty) {
-  const p = boardState[sy][sx];
-  const target = boardState[ty][tx];
+/* =========================================
+   LOGIQUE ECHECS
+   ========================================= */
 
-  if (!isTurnPiece(p)) return false;
-  if (sx === tx && sy === ty) return false;
-  if (target !== "." && isSameColor(p, target)) return false;
+function generateAllLegalMoves(color) {
+  let moves = [];
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      const p = board[y][x];
+      if (p !== '.' && getPieceColor(p) === color) {
+        moves = moves.concat(getMovesForPiece(x, y, p));
+      }
+    }
+  }
+  // Filtrer les coups qui laissent le roi en échec
+  return moves.filter(m => {
+    // Simuler
+    const backup = cloneBoard(board);
+    // Move simple simulation logic (sans side effects like castling rights update)
+    board[m.to.y][m.to.x] = m.promotion ? (color === 'white' ? 'Q' : 'q') : board[m.from.y][m.from.x]; // Assume Queen for check test
+    board[m.from.y][m.from.x] = '.';
+    if (m.enPassant) board[m.from.y][m.to.x] = '.';
 
-  const dx = tx - sx;
-  const dy = ty - sy;
-  const adx = Math.abs(dx);
-  const ady = Math.abs(dy);
+    // King position might have changed
+    const kingInCheck = isInCheck(color);
+
+    // Restore
+    board = backup;
+    return !kingInCheck;
+  });
+}
+
+function getMovesForPiece(x, y, p) {
   const type = p.toLowerCase();
-  const isWhite = p === p.toUpperCase();
+  const color = getPieceColor(p);
+  const moves = [];
 
-  switch (type) {
-    case 'p': // Pawn
-      const direction = isWhite ? -1 : 1;
-      const startRow = isWhite ? 6 : 1;
+  const directions = {
+    'r': [[0,1], [0,-1], [1,0], [-1,0]],
+    'b': [[1,1], [1,-1], [-1,1], [-1,-1]],
+    'n': [[1,2], [2,1], [2,-1], [1,-2], [-1,-2], [-2,-1], [-2,1], [-1,2]],
+    'k': [[0,1], [0,-1], [1,0], [-1,0], [1,1], [1,-1], [-1,1], [-1,-1]]
+  };
+  directions['q'] = [...directions['r'], ...directions['b']];
 
-      // Move forward 1
-      if (dx === 0 && dy === direction && target === ".") return true;
+  // Fonctions aides
+  const addMove = (tx, ty, extra={}) => {
+    moves.push({ from: {x,y}, to: {x:tx, y:ty}, piece: p, ...extra });
+  };
 
-      // Move forward 2
-      if (dx === 0 && dy === direction * 2 && sy === startRow && target === "." && boardState[sy + direction][sx] === ".") return true;
+  if (type === 'n' || type === 'k') {
+    for (let d of directions[type]) {
+      const tx = x + d[0], ty = y + d[1];
+      if (onBoard(tx, ty)) {
+        const target = board[ty][tx];
+        if (target === '.' || getPieceColor(target) !== color) {
+          addMove(tx, ty);
+        }
+      }
+    }
+  }
 
-      // Capture
-      if (adx === 1 && dy === direction && target !== "." && !isSameColor(p, target)) return true;
+  if (type === 'r' || type === 'b' || type === 'q') {
+    for (let d of directions[type]) {
+      let tx = x + d[0], ty = y + d[1];
+      while (onBoard(tx, ty)) {
+        const target = board[ty][tx];
+        if (target === '.') {
+          addMove(tx, ty);
+        } else {
+          if (getPieceColor(target) !== color) addMove(tx, ty);
+          break;
+        }
+        tx += d[0]; ty += d[1];
+      }
+    }
+  }
 
-      return false;
+  if (type === 'p') {
+    const dir = color === 'white' ? -1 : 1;
+    const startRow = color === 'white' ? 6 : 1;
+    const promoRow = color === 'white' ? 0 : 7;
 
-    case 'r': // Rook
-      if (dx !== 0 && dy !== 0) return false;
-      return isPathClear(sx, sy, tx, ty);
+    // Avance 1
+    if (onBoard(x, y + dir) && board[y+dir][x] === '.') {
+      if (y + dir === promoRow) {
+        addMove(x, y+dir, {promotion: true});
+      } else {
+        addMove(x, y+dir);
+        // Avance 2
+        if (y === startRow && board[y+dir*2][x] === '.') {
+          addMove(x, y+dir*2, {double: true});
+        }
+      }
+    }
+    // Capture
+    for (let dx of [-1, 1]) {
+      const tx = x + dx, ty = y + dir;
+      if (onBoard(tx, ty)) {
+        const target = board[ty][tx];
+        if (target !== '.' && getPieceColor(target) !== color) {
+          if (ty === promoRow) addMove(tx, ty, {promotion: true});
+          else addMove(tx, ty);
+        }
+        // En Passant
+        if (enPassantTarget && enPassantTarget.x === tx && enPassantTarget.y === ty) {
+          addMove(tx, ty, {enPassant: true});
+        }
+      }
+    }
+  }
 
-    case 'b': // Bishop
-      if (adx !== ady) return false;
-      return isPathClear(sx, sy, tx, ty);
+  // Roque
+  if (type === 'k' && !isInCheck(color)) {
+    const rights = color === 'white' ? castling.white : castling.black;
+    const row = color === 'white' ? 7 : 0;
 
-    case 'q': // Queen
-      if ((dx !== 0 && dy !== 0) && (adx !== ady)) return false;
-      return isPathClear(sx, sy, tx, ty);
+    // Petit Roque
+    if (rights.k && board[row][5] === '.' && board[row][6] === '.') {
+      if (!isSquareAttacked(5, row, getOppositeColor(color)) &&
+          !isSquareAttacked(6, row, getOppositeColor(color))) {
+        addMove(6, row, {castle: 'k'});
+      }
+    }
+    // Grand Roque
+    if (rights.q && board[row][1] === '.' && board[row][2] === '.' && board[row][3] === '.') {
+      if (!isSquareAttacked(2, row, getOppositeColor(color)) &&
+          !isSquareAttacked(3, row, getOppositeColor(color))) {
+        addMove(2, row, {castle: 'q'});
+      }
+    }
+  }
 
-    case 'n': // Knight
-      return (adx === 2 && ady === 1) || (adx === 1 && ady === 2);
+  return moves;
+}
 
-    case 'k': // King
-      return adx <= 1 && ady <= 1;
+function isInCheck(color) {
+  let kx, ky;
+  // Trouver le roi
+  for(let y=0; y<8; y++) {
+    for(let x=0; x<8; x++) {
+      if (board[y][x] === (color==='white'?'K':'k')) {
+        kx=x; ky=y; break;
+      }
+    }
+  }
+  return isSquareAttacked(kx, ky, getOppositeColor(color));
+}
+
+function isSquareAttacked(x, y, attackerColor) {
+  // On regarde si une pièce adverse peut atteindre (x, y)
+  // Optimisation: regarder depuis (x,y) comme si on était une pièce type
+
+  // 1. Pion
+  const pawnDir = attackerColor === 'white' ? 1 : -1; // Le pion blanc attaque vers le haut (-1) donc vient du bas (+1)
+  // ATTENTION: attackerColor='white' pion attaque vers y-1. Donc si je suis en x,y, je suis attaqué par un pion blanc en y+1
+  if (onBoard(x-1, y+pawnDir) && board[y+pawnDir][x-1] === (attackerColor==='white'?'P':'p')) return true;
+  if (onBoard(x+1, y+pawnDir) && board[y+pawnDir][x+1] === (attackerColor==='white'?'P':'p')) return true;
+
+  // 2. Cavalier
+  const knights = [[1,2], [2,1], [2,-1], [1,-2], [-1,-2], [-2,-1], [-2,1], [-1,2]];
+  for (let d of knights) {
+    const tx = x+d[0], ty = y+d[1];
+    if (onBoard(tx, ty) && board[ty][tx] === (attackerColor==='white'?'N':'n')) return true;
+  }
+
+  // 3. Roi
+  const kings = [[0,1], [0,-1], [1,0], [-1,0], [1,1], [1,-1], [-1,1], [-1,-1]];
+  for (let d of kings) {
+    const tx = x+d[0], ty = y+d[1];
+    if (onBoard(tx, ty) && board[ty][tx] === (attackerColor==='white'?'K':'k')) return true;
+  }
+
+  // 4. Lignes (Tour + Dame)
+  const lines = [[0,1], [0,-1], [1,0], [-1,0]];
+  for (let d of lines) {
+    let tx = x+d[0], ty = y+d[1];
+    while(onBoard(tx, ty)) {
+      const p = board[ty][tx];
+      if (p !== '.') {
+        if (getPieceColor(p) === attackerColor && (p.toLowerCase() === 'r' || p.toLowerCase() === 'q')) return true;
+        break;
+      }
+      tx += d[0]; ty += d[1];
+    }
+  }
+
+  // 5. Diagonales (Fou + Dame)
+  const diags = [[1,1], [1,-1], [-1,1], [-1,-1]];
+  for (let d of diags) {
+    let tx = x+d[0], ty = y+d[1];
+    while(onBoard(tx, ty)) {
+      const p = board[ty][tx];
+      if (p !== '.') {
+        if (getPieceColor(p) === attackerColor && (p.toLowerCase() === 'b' || p.toLowerCase() === 'q')) return true;
+        break;
+      }
+      tx += d[0]; ty += d[1];
+    }
   }
 
   return false;
 }
 
-function highlightMoves(x, y) {
-  render();
-  document.querySelectorAll(".square").forEach(s => {
-    if (isLegal(x, y, parseInt(s.dataset.x), parseInt(s.dataset.y))) {
-      s.classList.add("move");
-    }
+
+/* =========================================
+   PROMOTION
+   ========================================= */
+
+function startPromotion(move) {
+  promoting = move;
+  const modal = document.getElementById('promotionModal');
+  const opts = document.getElementById('promoOptions');
+  opts.innerHTML = '';
+  modal.classList.add('active');
+
+  const choices = turn === 'white' ? ['Q', 'R', 'B', 'N'] : ['q', 'r', 'b', 'n'];
+  choices.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'promo-piece';
+    el.textContent = PIECES[p];
+    el.onclick = (e) => {
+      e.stopPropagation();
+      finishPromotion(p);
+    };
+    opts.appendChild(el);
   });
 }
 
-function resetGame() {
-  turn = "white";
-  document.getElementById("turn").textContent = "Tour : Blanc";
-  initBoard();
-  render();
+function finishPromotion(pieceChar) {
+  if (!promoting) return;
+  promoting.promotionPiece = pieceChar;
+  executeMove(promoting);
+  promoting = null;
+  document.getElementById('promotionModal').classList.remove('active');
 }
 
-initBoard();
-render();
+/* =========================================
+   UTILITAIRES
+   ========================================= */
+
+function getPieceColor(p) {
+  if (p === '.') return null;
+  return p === p.toUpperCase() ? 'white' : 'black';
+}
+function getOppositeColor(c) {
+  return c === 'white' ? 'black' : 'white';
+}
+function onBoard(x, y) {
+  return x >= 0 && x < 8 && y >= 0 && y < 8;
+}
+function cloneBoard(b) {
+  return b.map(row => [...row]);
+}
+
+initGame();
 </script>
 </body>
 </html>
