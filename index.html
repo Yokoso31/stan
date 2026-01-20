@@ -133,6 +133,14 @@ var boss = {
     timer: 0
 };
 
+// ===== THÈMES =====
+const THEMES = {
+    DAY: { bgTop: '#70c5ce', bgBottom: '#ffffff', pipe: 'green' },
+    NIGHT: { bgTop: '#172040', bgBottom: '#203a43', pipe: 'silver' },
+    SUNSET: { bgTop: '#4e0c1e', bgBottom: '#d04e4e', pipe: 'darkred' }
+};
+var currentTheme = THEMES.DAY;
+
 // ===== CONTRÔLES =====
 function flap() {
     if (!gameStarted) {
@@ -161,12 +169,21 @@ function resetGame() {
     clouds.length = 0;
     score = 0;
     pipesSpawned = 0;
+    currentTheme = THEMES.DAY;
     gameOver = false;
     gameStarted = false;
     info.textContent = "Clique ou appuie sur ESPACE pour commencer";
 }
 
 // ===== DESSINS =====
+function drawBackground() {
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, currentTheme.bgTop);
+    grad.addColorStop(1, currentTheme.bgBottom);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
 function drawClouds() {
     ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
     clouds.forEach(c => {
@@ -247,7 +264,7 @@ function drawPipes() {
             ctx.stroke();
         } else {
             // Dessin des tuyaux classiques
-            ctx.fillStyle = "green";
+            ctx.fillStyle = currentTheme.pipe;
             ctx.fillRect(p.x, 0, pipeWidth, p.top);
             ctx.fillRect(p.x, p.bottom, pipeWidth, canvas.height - p.bottom);
         }
@@ -264,6 +281,11 @@ function drawScore() {
 // ===== LOGIQUE =====
 function update() {
     if (!gameStarted || gameOver) return;
+
+    // Gestion Thèmes
+    if (score < 10) currentTheme = THEMES.DAY;
+    else if (score < 20) currentTheme = THEMES.NIGHT;
+    else currentTheme = THEMES.SUNSET;
 
     bird.velocity += bird.gravity;
     bird.y += bird.velocity;
@@ -458,7 +480,8 @@ function endGame() {
 
 // ===== BOUCLE PRINCIPALE =====
 function loop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // ctx.clearRect not needed if we fill background
+    drawBackground();
     update();
     drawClouds();
     drawPipes();
