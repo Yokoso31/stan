@@ -59,6 +59,7 @@ const Sound = {
     },
     jump: () => Sound.playTone(400, 'sine', 0.1),
     score: () => Sound.playTone(1000, 'square', 0.1),
+    powerup: () => Sound.playTone(600, 'sine', 0.2),
     die: () => {
         Sound.playTone(100, 'sawtooth', 0.5);
         setTimeout(() => Sound.playTone(80, 'sawtooth', 0.5), 100);
@@ -77,6 +78,7 @@ var gameOver = false;
 var score = 0;
 var pipesSpawned = 0;
 var godMode = false;
+var powerups = [];
 
 // Cheat Code
 const CHEAT_SEQUENCE = ['d', 'f'];
@@ -106,11 +108,14 @@ var bird = {
     x: 60,
     y: 200,
     radius: 12,
+    originalRadius: 12,
     velocity: 0,
     gravity: 0.5,
     jump: -8,
     rotation: 0,
-    frame: 0
+    frame: 0,
+    hasShield: false,
+    smallTimer: 0
 };
 
 // ===== TUYAUX =====
@@ -118,6 +123,10 @@ var pipes = [];
 const pipeWidth = 50;
 const pipeGap = 120;
 let pipeTimer = 0;
+
+// ===== POWER-UPS =====
+const POWERUP_TYPES = ['SHIELD', 'SMALL'];
+let powerupTimer = 0;
 
 // ===== FOND (NUAGES) =====
 var clouds = [];
@@ -165,8 +174,11 @@ document.addEventListener("click", flap);
 function resetGame() {
     bird.y = 200;
     bird.velocity = 0;
+    bird.hasShield = false;
+    bird.radius = bird.originalRadius;
     pipes.length = 0;
     clouds.length = 0;
+    powerups.length = 0;
     score = 0;
     pipesSpawned = 0;
     currentTheme = THEMES.DAY;
@@ -200,6 +212,15 @@ function drawBird() {
     ctx.translate(bird.x, bird.y);
     ctx.rotate(bird.rotation);
 
+    // Bouclier
+    if (bird.hasShield) {
+        ctx.beginPath();
+        ctx.arc(0, 0, bird.radius + 5, 0, Math.PI * 2);
+        ctx.strokeStyle = "cyan";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+    }
+
     ctx.beginPath();
     ctx.arc(0, 0, bird.radius, 0, Math.PI * 2);
     ctx.fillStyle = godMode ? "orange" : "yellow";
@@ -209,18 +230,35 @@ function drawBird() {
     // Oeil
     ctx.fillStyle = "black";
     ctx.beginPath();
-    ctx.arc(4, -4, 2, 0, Math.PI * 2);
+    ctx.arc(bird.radius/3, -bird.radius/3, 2, 0, Math.PI * 2);
     ctx.fill();
 
     // Aile (animation)
     ctx.fillStyle = "white";
     ctx.beginPath();
-    let wingY = Math.sin(bird.frame * 0.2) * 5;
-    ctx.ellipse(-5, 2 + wingY, 8, 5, 0, 0, Math.PI * 2);
+    let wingY = Math.sin(bird.frame * 0.2) * (bird.radius/2.4);
+    ctx.ellipse(-bird.radius/2.4, bird.radius/6 + wingY, bird.radius/1.5, bird.radius/2.4, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
     ctx.restore();
+}
+
+function drawPowerups() {
+    powerups.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
+        ctx.fillStyle = p.type === 'SHIELD' ? 'cyan' : 'purple';
+        ctx.fill();
+        ctx.strokeStyle = 'white';
+        ctx.stroke();
+
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(p.type === 'SHIELD' ? 'S' : 'M', p.x, p.y);
+    });
 }
 
 function drawBoss() {
@@ -316,6 +354,52 @@ function update() {
         clouds.shift();
     }
 
+    // LOGIQUE POWER-UPS
+    powerupTimer++;
+    if (powerupTimer > 300) { // Toutes les ~5 secondes
+        if (Math.random() < 0.3) { // 30% de chance
+             const type = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+             powerups.push({
+                 x: canvas.width,
+                 y: Math.random() * (canvas.height - 100) + 50,
+                 type: type
+             });
+        }
+        powerupTimer = 0;
+    }
+
+    // Mouvement et Collision Powerups
+    powerups.forEach((p, index) => {
+        p.x -= 2;
+        let dx = bird.x - p.x;
+        let dy = bird.y - p.y;
+        let dist = Math.sqrt(dx*dx + dy*dy);
+
+        if (dist < bird.radius + 15) { // Collision
+            Sound.powerup();
+            if (p.type === 'SHIELD') {
+                bird.hasShield = true;
+            } else if (p.type === 'SMALL') {
+                bird.radius = 6;
+                bird.smallTimer = 300; // 5 secondes
+            }
+            powerups.splice(index, 1);
+        }
+    });
+
+    // Nettoyage Powerups
+    if (powerups.length && powerups[0].x < -20) {
+        powerups.shift();
+    }
+
+    // Gestion Timer "Small"
+    if (bird.radius < bird.originalRadius) {
+        bird.smallTimer--;
+        if (bird.smallTimer <= 0) {
+            bird.radius = bird.originalRadius;
+        }
+    }
+
     // LOGIQUE BOSS
     // Apparition tous les 100 points
     if (score > 0 && score % 100 === 0 && !boss.active && pipeTimer === 0) {
@@ -354,7 +438,12 @@ function update() {
         let dist = Math.sqrt(dx*dx + dy*dy);
 
         if (!godMode && dist < bird.radius + boss.radius) {
-            endGame();
+            if (bird.hasShield) {
+                bird.hasShield = false;
+                boss.x += 100; // Recule le boss un peu
+            } else {
+                endGame();
+            }
         }
 
     } else {
@@ -414,7 +503,7 @@ function update() {
             let dist = Math.sqrt(dx*dx + dy*dy);
 
             // Si on est proche horizontalement
-            if (bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + pipeWidth) {
+            if (!p.passed && bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + pipeWidth) {
                 // Si on touche le bord du cercle
                 // L'oiseau passe si dist < p.radius - bird.radius (il est bien au centre)
                 // Sinon collision
@@ -433,7 +522,12 @@ function update() {
                 // Mais "cerceau" veut dire juste l'anneau.
                 // Je vais dire : Si on touche l'anneau (distance ~ rayon), mort.
                 if (!godMode && dist > p.radius - bird.radius && dist < p.radius + bird.radius + 5) {
-                    endGame();
+                    if (bird.hasShield) {
+                        bird.hasShield = false;
+                        p.passed = true; // Shield absorbe le cerceau
+                    } else {
+                        endGame();
+                    }
                 }
             }
 
@@ -448,13 +542,18 @@ function update() {
 
             // Collision Tuyau
             if (
-                !godMode &&
+                !godMode && !p.passed &&
                 bird.x + bird.radius > p.x &&
                 bird.x - bird.radius < p.x + pipeWidth &&
                 (bird.y - bird.radius < p.top ||
                  bird.y + bird.radius > p.bottom)
             ) {
-                endGame();
+                if (bird.hasShield) {
+                    bird.hasShield = false;
+                    p.passed = true; // Évite de re-collisionner immédiatement
+                } else {
+                    endGame();
+                }
             }
         }
 
@@ -485,6 +584,7 @@ function loop() {
     update();
     drawClouds();
     drawPipes();
+    drawPowerups();
     drawBoss();
     drawBird();
     drawScore();
