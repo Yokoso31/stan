@@ -785,8 +785,9 @@ class Fighter {
             }
             // Attack duration 200ms
             setTimeout(() => this.attacking = false, 200);
-            // Cooldown 400ms
-            setTimeout(() => this.attackCooldown = false, 400);
+            // Cooldown based on type (Anti-spam)
+            const cooldownTime = type === "heavy" ? 1000 : 600;
+            setTimeout(() => this.attackCooldown = false, cooldownTime);
         }
     }
 }
