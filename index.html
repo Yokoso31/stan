@@ -670,12 +670,18 @@ class Fighter {
 
             // Only calculate hit if target is not invincible
             if (!target.invincible) {
-                // Adjust hit logic for crouching target?
-                // Melee hits usually hit regardless of crouch unless high/low implemented.
-                // Assuming melee hits simple distance check.
 
+                // Check if hit landed (X distance)
                 const hit = Math.abs(this.x - target.x) < 50;
-                if (hit) {
+
+                // High/Low Logic:
+                // If attacker is standing (High Attack) and target is crouching (Low State), Miss.
+                // Assuming attack is "High" if not crouching.
+                if (hit && !this.isCrouching && target.isCrouching) {
+                    // Miss due to crouching
+                    // Optional: Add visual miss feedback
+                }
+                else if (hit) {
                     // Check Shield
                     if (target.hasShield) {
                         target.hasShield = false; // Break shield
