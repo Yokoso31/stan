@@ -424,6 +424,14 @@ class Fighter {
 
         // Animation
         this.animFrame = 0;
+
+        this.pose = {
+          body: 0,
+          armFront: 0,
+          armBack: 0,
+          legFront: 0,
+          legBack: 0
+        };
     }
 
     reset() {
@@ -445,6 +453,14 @@ class Fighter {
         this.color = this.originalColor;
         this.facing = this.startX < 500 ? 1 : -1; // Face center
         this.animFrame = 0;
+
+        this.pose = {
+          body: 0,
+          armFront: 0,
+          armBack: 0,
+          legFront: 0,
+          legBack: 0
+        };
     }
 
     collectPower(type) {
@@ -466,137 +482,72 @@ class Fighter {
         ctx.strokeStyle = this.color;
         ctx.lineWidth = 4;
         ctx.shadowColor = this.color;
-        ctx.shadowBlur = this.hasPower ? 30 : 15; // More glow if powered
+        ctx.shadowBlur = this.hasPower ? 30 : 15;
 
-        // Visual indicator for invincibility (blinking/opacity)
-        if (this.invincible) {
-            ctx.globalAlpha = 0.5;
-        }
+        if (this.invincible) ctx.globalAlpha = 0.5;
 
-        const breathY = this.vx === 0 && !this.isCrouching ? Math.sin(this.animFrame * 0.1) * 2 : 0;
+        // Calculate positions based on Pose Angles
+        // Lengths
+        const bodyLen = 20; // Hips to Neck
+        const legLen = 30;
+        const armLen = 30;
 
-        // Base Positions (Standing)
-        let headY = this.y - 70 + breathY;
-        let neckY = this.y - 60 + breathY;
-        let shoulderY = this.y - 40 + breathY;
-        let hipsY = this.y;
+        // Base Points
+        const hipsX = this.x;
+        const hipsY = this.y - 30; // Hips raised from ground
 
-        // Crouch Adjustments
-        if (this.isCrouching) {
-            headY = this.y - 35;
-            neckY = this.y - 25;
-            shoulderY = this.y - 25;
-            hipsY = this.y;
-        }
+        // Body (neck position calculated from hips + angle)
+        // Pose.body: 0 is Up, positive leans forward (towards facing)
+        const neckX = hipsX + Math.sin(this.pose.body * this.facing) * bodyLen;
+        const neckY = hipsY - Math.cos(this.pose.body) * bodyLen;
 
-        // Animation Phase (Run Cycle)
-        const runPhase = this.vx !== 0 ? Math.sin(this.animFrame * 0.2) : 0;
+        const shoulderX = neckX; // For simplicity, shoulders at neck
+        const shoulderY = neckY + 5;
 
-        // --- Jambe gauche (Background) ---
+        // Head
+        const headX = neckX + Math.sin(this.pose.body * this.facing) * 10;
+        const headY = neckY - 10;
+
+        // --- Jambe gauche (Back) ---
         ctx.beginPath();
-        let lLegX = this.x;
-        let lLegY = hipsY + 30;
-
-        if (this.y < GROUND) { // Jump
-            lLegX = this.x - 10; lLegY = hipsY + 15;
-        } else if (this.isCrouching) { // Crouch
-            lLegX = this.x - 20; lLegY = hipsY + 10;
-        } else if (this.vx !== 0) { // Run (Opposite to Right/Front leg)
-             lLegX = this.x - (runPhase * 20);
-             lLegY = hipsY + 30 - Math.abs(runPhase * 5);
-        } else { // Stand
-             lLegX = this.x - 15;
-        }
-        ctx.moveTo(this.x, hipsY);
+        ctx.moveTo(hipsX, hipsY);
+        const lLegX = hipsX + Math.sin(this.pose.legBack * this.facing) * legLen;
+        const lLegY = hipsY + Math.cos(this.pose.legBack) * legLen;
         ctx.lineTo(lLegX, lLegY);
         ctx.stroke();
 
-        // --- Bras gauche (Background) ---
+        // --- Bras gauche (Back) ---
         ctx.beginPath();
-        let lArmX = this.x;
-        let lArmY = shoulderY + 30; // Default down
-
-        if (this.hasPistol) {
-            // Support arm
-            lArmX = this.x + 30 * this.facing;
-            lArmY = shoulderY + 5;
-        } else if (this.isCrouching) {
-             lArmX = this.x - 10 * this.facing;
-             lArmY = shoulderY + 20;
-        } else if (this.attacking) {
-             lArmX = this.x - 20 * this.facing;
-             lArmY = shoulderY + 10;
-        } else if (this.vx !== 0) {
-             // Swing (Matches Right Leg phase -> +runPhase)
-             const swing = runPhase * 20;
-             lArmX = this.x + swing;
-             lArmY = shoulderY + 30 - Math.abs(swing * 0.2);
-        } else {
-             // Idle
-             lArmX = this.x - 10 * this.facing;
-        }
-        ctx.moveTo(this.x, shoulderY);
+        ctx.moveTo(shoulderX, shoulderY);
+        const lArmX = shoulderX + Math.sin(this.pose.armBack * this.facing) * armLen;
+        const lArmY = shoulderY + Math.cos(this.pose.armBack) * armLen;
         ctx.lineTo(lArmX, lArmY);
         ctx.stroke();
 
         // --- Corps ---
         ctx.beginPath();
-        ctx.moveTo(this.x, neckY);
-        ctx.lineTo(this.x, hipsY);
+        ctx.moveTo(neckX, neckY);
+        ctx.lineTo(hipsX, hipsY);
         ctx.stroke();
 
         // --- Tête ---
         ctx.beginPath();
-        ctx.arc(this.x, headY, 10, 0, Math.PI * 2);
+        ctx.arc(headX, headY, 10, 0, Math.PI * 2);
         ctx.stroke();
 
-        // --- Jambe droite (Foreground) ---
+        // --- Jambe droite (Front) ---
         ctx.beginPath();
-        let rLegX = this.x;
-        let rLegY = hipsY + 30;
-
-        if (this.y < GROUND) { // Jump
-            rLegX = this.x + 10; rLegY = hipsY + 20;
-        } else if (this.isCrouching) { // Crouch
-            rLegX = this.x + 20; rLegY = hipsY + 10;
-        } else if (this.vx !== 0) { // Run
-             rLegX = this.x + (runPhase * 20);
-             rLegY = hipsY + 30 - Math.abs(runPhase * 5);
-        } else {
-             rLegX = this.x + 15;
-        }
-        ctx.moveTo(this.x, hipsY);
+        ctx.moveTo(hipsX, hipsY);
+        const rLegX = hipsX + Math.sin(this.pose.legFront * this.facing) * legLen;
+        const rLegY = hipsY + Math.cos(this.pose.legFront) * legLen;
         ctx.lineTo(rLegX, rLegY);
         ctx.stroke();
 
-        // --- Bras droit (Foreground / Main Hand) ---
+        // --- Bras droit (Front / Main Hand) ---
         ctx.beginPath();
-        let rArmX = this.x;
-        let rArmY = shoulderY + 30;
-
-        if (this.hasPistol) {
-            // Aim
-             rArmX = this.x + 40 * this.facing;
-             rArmY = shoulderY; // Straight
-        } else if (this.attacking) {
-             // Attack
-             rArmX = this.x + 60 * this.facing;
-             rArmY = shoulderY - 10;
-        } else if (this.isCrouching) {
-             rArmX = this.x + 20 * this.facing;
-             rArmY = shoulderY + 15;
-        } else if (this.vx !== 0) {
-             // Swing (Opposite to Left Arm -> -runPhase)
-             const swing = -runPhase * 20;
-             rArmX = this.x + swing;
-             rArmY = shoulderY + 30 - Math.abs(swing * 0.2);
-        } else {
-             // Idle
-             rArmX = this.x + 25 * this.facing;
-             rArmY = shoulderY + 10;
-        }
-
-        ctx.moveTo(this.x, shoulderY);
+        ctx.moveTo(shoulderX, shoulderY);
+        const rArmX = shoulderX + Math.sin(this.pose.armFront * this.facing) * armLen;
+        const rArmY = shoulderY + Math.cos(this.pose.armFront) * armLen;
         ctx.lineTo(rArmX, rArmY);
         ctx.stroke();
 
@@ -644,9 +595,9 @@ class Fighter {
 
         // Animation Frame Update
         if (this.vx !== 0) {
-            this.animFrame += 1; // Faster when moving
+            this.animFrame += 0.2; // Run speed
         } else {
-            this.animFrame += 0.2; // Slower idle breath
+            this.animFrame += 0.05; // Idle speed
         }
 
         if (this.y < GROUND) this.vy += GRAVITY;
@@ -656,6 +607,73 @@ class Fighter {
         }
 
         this.x = Math.max(20, Math.min(canvas.width - 20, this.x));
+
+        // --- Calculate Pose Angles ---
+        // 0 = Down/Neutral. Positive = Forward/Up. Negative = Backward.
+        // Angles in Radians.
+
+        if (this.isCrouching) {
+            // Crouch Pose
+            this.pose.body = 0.5; // Lean forward
+            this.pose.legFront = 1.0; // Knee up
+            this.pose.legBack = -1.0; // Knee back/spread
+
+            if (this.hasPistol) {
+                this.pose.armFront = 1.57; // Aim straight (90 deg)
+                this.pose.armBack = 0.5;
+            } else {
+                this.pose.armFront = 0.5;
+                this.pose.armBack = -0.5;
+            }
+
+        } else if (this.y < GROUND) {
+             // Jump Pose
+             this.pose.body = 0.2;
+             this.pose.legFront = 0.5; // Knees up
+             this.pose.legBack = 0.8;
+             this.pose.armFront = -0.5; // Arms up
+             this.pose.armBack = -0.8;
+
+        } else if (this.vx !== 0) {
+            // Run Cycle
+            this.pose.body = 0.3; // Lean forward
+
+            const runSin = Math.sin(this.animFrame);
+            const runCos = Math.cos(this.animFrame);
+
+            // Legs move opposite
+            this.pose.legFront = runSin * 0.8;
+            this.pose.legBack = -runSin * 0.8;
+
+            // Arms move opposite to legs (Front Arm <-> Back Leg)
+            if (this.hasPistol) {
+                this.pose.armFront = 1.57; // Keep aiming
+            } else {
+                this.pose.armFront = -runSin * 0.8;
+            }
+            this.pose.armBack = runSin * 0.8;
+
+        } else {
+            // Idle Pose
+            this.pose.body = Math.sin(this.animFrame) * 0.05; // Subtle sway
+            this.pose.legFront = 0.2; // Stance
+            this.pose.legBack = -0.2;
+
+            if (this.hasPistol) {
+                this.pose.armFront = 1.57;
+            } else {
+                 this.pose.armFront = Math.sin(this.animFrame) * 0.1;
+            }
+            this.pose.armBack = -Math.sin(this.animFrame) * 0.1;
+        }
+
+        // Attack Override
+        if (this.attacking && !this.hasPistol) {
+             // Swing arm forward
+             // Simple lerp or hard set? Hard set for snap is fine for this style.
+             this.pose.armFront = 2.0; // High swing
+             this.pose.body = 0.5; // Lean into it
+        }
 
         // Body Collision with PowerBlock (Collect by touch)
         if (powerBlock.active) {
