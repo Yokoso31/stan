@@ -87,6 +87,11 @@ class Fighter {
         ctx.shadowColor = this.color;
         ctx.shadowBlur = 15;
 
+        // Tête
+        ctx.beginPath();
+        ctx.arc(this.x, this.y - 70, 10, 0, Math.PI * 2);
+        ctx.stroke();
+
         // Corps
         ctx.beginPath();
         ctx.moveTo(this.x, this.y - 60);
@@ -96,8 +101,21 @@ class Fighter {
         // Bras
         ctx.beginPath();
         ctx.moveTo(this.x, this.y - 40);
-        ctx.lineTo(this.x + (this.attacking ? 40 * this.facing : 25 * this.facing), this.y - 30);
+        ctx.lineTo(this.x + (this.attacking ? 60 * this.facing : 25 * this.facing), this.y - 30);
         ctx.stroke();
+
+        // Attack visual effect
+        if (this.attacking) {
+             ctx.beginPath();
+             ctx.strokeStyle = "white";
+             ctx.lineWidth = 2;
+             ctx.moveTo(this.x + 40 * this.facing, this.y - 45);
+             ctx.quadraticCurveTo(this.x + 70 * this.facing, this.y - 30, this.x + 40 * this.facing, this.y - 15);
+             ctx.stroke();
+             // Restore style
+             ctx.strokeStyle = this.color;
+             ctx.lineWidth = 4;
+        }
 
         // Jambes
         ctx.beginPath();
@@ -135,8 +153,8 @@ class Fighter {
 
 const keys = {};
 
-document.addEventListener("keydown", e => keys[e.key] = true);
-document.addEventListener("keyup", e => keys[e.key] = false);
+document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
 const p1 = new Fighter(300, "#00ffff", {
     left: "a",
@@ -155,18 +173,18 @@ const p2 = new Fighter(700, "#ff00ff", {
 function handleInput(p, enemy) {
     p.vx = 0;
 
-    if (keys[p.controls.left]) {
+    if (keys[p.controls.left.toLowerCase()]) {
         p.vx = -4;
         p.facing = -1;
     }
-    if (keys[p.controls.right]) {
+    if (keys[p.controls.right.toLowerCase()]) {
         p.vx = 4;
         p.facing = 1;
     }
-    if (keys[p.controls.jump] && p.vy === 0) {
+    if (keys[p.controls.jump.toLowerCase()] && p.vy === 0) {
         p.vy = -12;
     }
-    if (keys[p.controls.attack]) {
+    if (keys[p.controls.attack.toLowerCase()]) {
         p.attack(enemy);
     }
 }
