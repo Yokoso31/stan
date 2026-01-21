@@ -563,10 +563,10 @@ function getBotMove(difficulty) {
     // L'état actuel est déjà "bon" pour applyVirtualMove car c'est au tour du bot (Black)
     // Mais executeMove a un setTimeout. C'est pourquoi on a fait applyVirtualMove.
 
-    const state = saveState();
-
     for (const move of legalMoves) {
       if (move.promotion) move.promotionPiece = 'q'; // Hypothèse simple
+
+      const state = saveState();
       applyVirtualMove(move);
       // Après le coup du bot, c'est au tour de White.
       // On évalue la position. EvaluateBoard renvoie score positif pour avantage Black.
