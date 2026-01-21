@@ -144,12 +144,16 @@ class Fighter {
         this.x = Math.max(20, Math.min(canvas.width - 20, this.x));
     }
 
-    attack(target) {
+    attack(target, type = "light") {
         if (!this.attacking) {
             this.attacking = true;
+            let damage = 10;
+            if (type === "light") damage = 5;
+            if (type === "heavy") damage = 15;
+
             const hit = Math.abs(this.x - target.x) < 50;
             if (hit) {
-                target.health -= 10;
+                target.health -= damage;
                 freezeFrames = 6; // 6 frames de pause
                 shake = 10;
             }
@@ -167,14 +171,16 @@ const p1 = new Fighter(300, "#00ffff", {
     left: "a",
     right: "d",
     jump: "w",
-    attack: "e"
+    attackLight: "e",
+    attackHeavy: "r"
 });
 
 const p2 = new Fighter(700, "#ff00ff", {
     left: "ArrowLeft",
     right: "ArrowRight",
     jump: "ArrowUp",
-    attack: "Enter"
+    attackLight: "Enter",
+    attackHeavy: "Shift"
 });
 
 function handleInput(p, enemy) {
@@ -191,8 +197,11 @@ function handleInput(p, enemy) {
     if (keys[p.controls.jump.toLowerCase()] && p.vy === 0) {
         p.vy = -12;
     }
-    if (keys[p.controls.attack.toLowerCase()]) {
-        p.attack(enemy);
+    if (keys[p.controls.attackLight.toLowerCase()]) {
+        p.attack(enemy, "light");
+    }
+    if (keys[p.controls.attackHeavy.toLowerCase()]) {
+        p.attack(enemy, "heavy");
     }
 }
 
