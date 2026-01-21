@@ -82,6 +82,7 @@ class Fighter {
         this.attacking = false;
         this.controls = controls;
         this.facing = 1;
+        this.invincible = false;
     }
 
     draw() {
@@ -89,6 +90,11 @@ class Fighter {
         ctx.lineWidth = 4;
         ctx.shadowColor = this.color;
         ctx.shadowBlur = 15;
+
+        // Visual indicator for invincibility (blinking/opacity)
+        if (this.invincible) {
+            ctx.globalAlpha = 0.5;
+        }
 
         // Tête
         ctx.beginPath();
@@ -129,6 +135,7 @@ class Fighter {
         ctx.stroke();
 
         ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1.0; // Reset alpha
     }
 
     update() {
@@ -145,17 +152,26 @@ class Fighter {
     }
 
     attack(target, type = "light") {
-        if (!this.attacking) {
+        // Prevent attack if already attacking OR if invincible (can't attack while hit/invincible)
+        if (!this.attacking && !this.invincible) {
             this.attacking = true;
             let damage = 10;
             if (type === "light") damage = 5;
             if (type === "heavy") damage = 15;
 
-            const hit = Math.abs(this.x - target.x) < 50;
-            if (hit) {
-                target.health -= damage;
-                freezeFrames = 6; // 6 frames de pause
-                shake = 10;
+            // Only calculate hit if target is not invincible
+            if (!target.invincible) {
+                const hit = Math.abs(this.x - target.x) < 50;
+                if (hit) {
+                    target.health -= damage;
+                    freezeFrames = 6;
+                    shake = 10;
+
+                    // Apply hit effects: invincible and disable attack
+                    target.invincible = true;
+                    target.attacking = false; // Interrupt attack
+                    setTimeout(() => target.invincible = false, 2000);
+                }
             }
             setTimeout(() => this.attacking = false, 200);
         }
