@@ -78,6 +78,7 @@ class PowerBlock {
         this.x = 0;
         this.y = 0;
         this.spawnTimer = 0;
+        this.type = "damage"; // damage, shield, health
     }
 
     update() {
@@ -91,6 +92,13 @@ class PowerBlock {
             // Lowered spawn height further to be consistently reachable
             // GROUND is 420. Y between 260 and 340.
             this.y = GROUND - 80 - Math.random() * 80;
+
+            // Randomize Type
+            const r = Math.random();
+            if (r < 0.4) this.type = "damage";
+            else if (r < 0.7) this.type = "shield";
+            else this.type = "health";
+
             this.spawnTimer = 0;
         }
     }
@@ -98,8 +106,19 @@ class PowerBlock {
     draw() {
         if (!this.active) return;
 
-        ctx.fillStyle = "#FFD700"; // Gold color
-        ctx.shadowColor = "#FFD700";
+        let color = "#FFD700"; // Gold (Damage)
+        let text = "P";
+
+        if (this.type === "shield") {
+            color = "#00FFFF"; // Cyan (Shield)
+            text = "S";
+        } else if (this.type === "health") {
+            color = "#00FF00"; // Green (Health)
+            text = "+";
+        }
+
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
         ctx.shadowBlur = 20;
         ctx.fillRect(this.x, this.y, this.width, this.height);
 
@@ -110,9 +129,10 @@ class PowerBlock {
 
         // Pulse effect or text
         ctx.fillStyle = "black";
-        ctx.font = "20px Arial";
+        ctx.font = "bold 24px Arial";
         ctx.textAlign = "center";
-        ctx.fillText("P", this.x + this.width/2, this.y + 28);
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, this.x + this.width/2, this.y + this.height/2 + 2);
     }
 }
 
@@ -134,16 +154,23 @@ class Fighter {
         this.facing = 1;
         this.invincible = false;
         this.hasPower = false;
+        this.hasShield = false;
         this.attackCooldown = false;
     }
 
-    activatePower() {
-        this.hasPower = true;
-        this.color = "#FFD700"; // Gold
-        setTimeout(() => {
-            this.hasPower = false;
-            this.color = this.originalColor;
-        }, 5000); // 5 seconds duration
+    collectPower(type) {
+        if (type === "damage") {
+            this.hasPower = true;
+            this.color = "#FFD700"; // Gold
+            setTimeout(() => {
+                this.hasPower = false;
+                this.color = this.originalColor;
+            }, 5000); // 5 seconds duration
+        } else if (type === "shield") {
+            this.hasShield = true;
+        } else if (type === "health") {
+            this.health = Math.min(100, this.health + 30);
+        }
     }
 
     draw() {
@@ -195,6 +222,15 @@ class Fighter {
         ctx.lineTo(this.x + 15, this.y + 30);
         ctx.stroke();
 
+        // Shield Visual
+        if (this.hasShield) {
+            ctx.beginPath();
+            ctx.strokeStyle = "#00FFFF";
+            ctx.lineWidth = 3;
+            ctx.arc(this.x, this.y - 35, 50, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
         ctx.shadowBlur = 0;
         ctx.globalAlpha = 1.0; // Reset alpha
     }
@@ -225,7 +261,7 @@ class Fighter {
              // Combined half-widths: 20+20=40. Combined half-heights: 40+20=60.
              if (dx < 40 && dy < 60) {
                  powerBlock.active = false;
-                 this.activatePower();
+                 this.collectPower(powerBlock.type);
              }
         }
     }
@@ -247,7 +283,7 @@ class Fighter {
 
                 if (dx < 80 && dy < 120 && facingCorrect) {
                     powerBlock.active = false;
-                    this.activatePower();
+                    this.collectPower(powerBlock.type);
                 }
             }
 
@@ -261,14 +297,23 @@ class Fighter {
             if (!target.invincible) {
                 const hit = Math.abs(this.x - target.x) < 50;
                 if (hit) {
-                    target.health -= damage;
-                    freezeFrames = 6;
-                    shake = 10;
+                    // Check Shield
+                    if (target.hasShield) {
+                        target.hasShield = false; // Break shield
+                        shake = 5; // Minor shake for impact
+                        // No damage, no freezeFrames, no invincibility?
+                        // Let's add minor freeze
+                        freezeFrames = 2;
+                    } else {
+                        target.health -= damage;
+                        freezeFrames = 6;
+                        shake = 10;
 
-                    // Apply hit effects: invincible and disable attack
-                    target.invincible = true;
-                    target.attacking = false; // Interrupt attack
-                    setTimeout(() => target.invincible = false, 2000);
+                        // Apply hit effects: invincible and disable attack
+                        target.invincible = true;
+                        target.attacking = false; // Interrupt attack
+                        setTimeout(() => target.invincible = false, 2000);
+                    }
                 }
             }
             // Attack duration 200ms
