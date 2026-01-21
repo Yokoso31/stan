@@ -83,14 +83,14 @@ class PowerBlock {
     update() {
         if (this.active) return; // Already spawned
 
-        // Random spawn every ~10-15 seconds (600-900 frames)
+        // Random spawn every ~5 seconds (300 frames) - Increased frequency
         this.spawnTimer++;
-        if (this.spawnTimer > 600 && Math.random() < 0.005) {
+        if (this.spawnTimer > 300 && Math.random() < 0.01) {
             this.active = true;
             this.x = 100 + Math.random() * (canvas.width - 200); // Random X
-            // Lowered spawn height to be reachable: between GROUND - 50 and GROUND - 150
-            // GROUND is 420. Y between 270 and 370.
-            this.y = GROUND - 50 - Math.random() * 100;
+            // Lowered spawn height further to be consistently reachable
+            // GROUND is 420. Y between 260 and 340.
+            this.y = GROUND - 80 - Math.random() * 80;
             this.spawnTimer = 0;
         }
     }
@@ -210,6 +210,24 @@ class Fighter {
         }
 
         this.x = Math.max(20, Math.min(canvas.width - 20, this.x));
+
+        // Body Collision with PowerBlock (Collect by touch)
+        if (powerBlock.active) {
+             // Center of player approx (x, y-40).
+             // Center of block (block.x+20, block.y+20).
+             // Simple rect overlap:
+             // Player X +/- 20, Y +/- 40 (approx).
+             // Block X +/- 20, Y +/- 20.
+             // Distance check:
+             const dx = Math.abs(this.x - (powerBlock.x + 20));
+             const dy = Math.abs((this.y - 40) - (powerBlock.y + 20));
+
+             // Combined half-widths: 20+20=40. Combined half-heights: 40+20=60.
+             if (dx < 40 && dy < 60) {
+                 powerBlock.active = false;
+                 this.activatePower();
+             }
+        }
     }
 
     attack(target, type = "light") {
@@ -218,18 +236,16 @@ class Fighter {
             this.attacking = true;
             this.attackCooldown = true;
 
-            // Check collision with PowerBlock
+            // Check collision with PowerBlock (Attack range)
             if (powerBlock.active) {
-                // Simple box collision
-                // Attack range is roughly x to x + 60
-                const attackRangeX = this.facing === 1 ? this.x + 60 : this.x - 60;
-                // Check if powerblock is within reach
-                // Simplified: distance check
                 const dx = Math.abs(this.x - (powerBlock.x + powerBlock.width/2));
-                const dy = Math.abs((this.y - 40) - (powerBlock.y + powerBlock.height/2)); // Assuming attack is near torso height
+                const dy = Math.abs((this.y - 40) - (powerBlock.y + powerBlock.height/2));
 
-                // Increased tolerance for easier hits: dx < 80 (was 60), dy < 120 (was 80)
-                if (dx < 80 && dy < 120) {
+                // Direction Check: Must face the block to hit it
+                const directionToBlock = (powerBlock.x + 20) - this.x;
+                const facingCorrect = (directionToBlock * this.facing) > 0;
+
+                if (dx < 80 && dy < 120 && facingCorrect) {
                     powerBlock.active = false;
                     this.activatePower();
                 }
@@ -257,15 +273,21 @@ class Fighter {
             }
             // Attack duration 200ms
             setTimeout(() => this.attacking = false, 200);
-            // Cooldown 500ms (total time between starts of attacks)
-            setTimeout(() => this.attackCooldown = false, 500);
+            // Cooldown 400ms (total time between starts of attacks)
+            setTimeout(() => this.attackCooldown = false, 400);
         }
     }
 }
 
 const keys = {};
 
-document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+document.addEventListener("keydown", e => {
+    // Prevent default browser actions for game keys to avoid scrolling etc.
+    if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"," "].indexOf(e.code) > -1) {
+        e.preventDefault();
+    }
+    keys[e.key.toLowerCase()] = true;
+});
 document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
 const p1 = new Fighter(300, "#00ffff", {
@@ -318,8 +340,8 @@ function drawGround() {
 }
 
 function updateUI() {
-    document.getElementById("hp1").style.width = p1.health + "%";
-    document.getElementById("hp2").style.width = p2.health + "%";
+    document.getElementById("hp1").style.width = Math.max(0, p1.health) + "%";
+    document.getElementById("hp2").style.width = Math.max(0, p2.health) + "%";
 }
 
 function gameLoop() {
