@@ -88,7 +88,9 @@ class PowerBlock {
         if (this.spawnTimer > 600 && Math.random() < 0.005) {
             this.active = true;
             this.x = 100 + Math.random() * (canvas.width - 200); // Random X
-            this.y = GROUND - 100 - Math.random() * 150; // Random height above ground
+            // Lowered spawn height to be reachable: between GROUND - 50 and GROUND - 150
+            // GROUND is 420. Y between 270 and 370.
+            this.y = GROUND - 50 - Math.random() * 100;
             this.spawnTimer = 0;
         }
     }
@@ -132,6 +134,7 @@ class Fighter {
         this.facing = 1;
         this.invincible = false;
         this.hasPower = false;
+        this.attackCooldown = false;
     }
 
     activatePower() {
@@ -210,9 +213,10 @@ class Fighter {
     }
 
     attack(target, type = "light") {
-        // Prevent attack if already attacking OR if invincible (can't attack while hit/invincible)
-        if (!this.attacking && !this.invincible) {
+        // Prevent attack if already attacking OR if invincible OR if on cooldown
+        if (!this.attacking && !this.invincible && !this.attackCooldown) {
             this.attacking = true;
+            this.attackCooldown = true;
 
             // Check collision with PowerBlock
             if (powerBlock.active) {
@@ -250,7 +254,10 @@ class Fighter {
                     setTimeout(() => target.invincible = false, 2000);
                 }
             }
+            // Attack duration 200ms
             setTimeout(() => this.attacking = false, 200);
+            // Cooldown 500ms (total time between starts of attacks)
+            setTimeout(() => this.attackCooldown = false, 500);
         }
     }
 }
