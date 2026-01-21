@@ -228,7 +228,8 @@ class Fighter {
                 const dx = Math.abs(this.x - (powerBlock.x + powerBlock.width/2));
                 const dy = Math.abs((this.y - 40) - (powerBlock.y + powerBlock.height/2)); // Assuming attack is near torso height
 
-                if (dx < 60 && dy < 80) {
+                // Increased tolerance for easier hits: dx < 80 (was 60), dy < 120 (was 80)
+                if (dx < 80 && dy < 120) {
                     powerBlock.active = false;
                     this.activatePower();
                 }
