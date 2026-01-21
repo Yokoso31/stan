@@ -46,15 +46,126 @@
         margin: 10px;
         text-shadow: 0 0 15px #00ffff;
     }
+
+    .screen {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background: rgba(0, 0, 0, 0.85);
+        z-index: 10;
+        pointer-events: auto;
+    }
+
+    .hidden {
+        display: none !important;
+    }
+
+    .menu-content {
+        text-align: center;
+        border: 2px solid #00ffff;
+        padding: 40px;
+        box-shadow: 0 0 20px #00ffff;
+        background: rgba(0, 0, 0, 0.9);
+    }
+
+    .color-picker-row {
+        display: flex;
+        justify-content: center;
+        gap: 40px;
+        margin: 20px 0;
+    }
+
+    .player-config {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: white;
+    }
+
+    input[type="color"] {
+        width: 60px;
+        height: 60px;
+        border: 2px solid white;
+        background: none;
+        cursor: pointer;
+    }
+
+    button {
+        padding: 15px 40px;
+        font-size: 24px;
+        background: transparent;
+        color: #00ffff;
+        border: 2px solid #00ffff;
+        box-shadow: 0 0 10px #00ffff;
+        cursor: pointer;
+        font-family: 'Segoe UI', sans-serif;
+        text-transform: uppercase;
+        font-weight: bold;
+        transition: all 0.3s;
+    }
+
+    button:hover {
+        background: #00ffff;
+        color: black;
+        box-shadow: 0 0 30px #00ffff;
+    }
+
+    #gameover-title {
+        font-size: 64px;
+        color: #ff00ff;
+        text-shadow: 0 0 20px #ff00ff;
+        margin-bottom: 20px;
+    }
+
+    #winner-text {
+        font-size: 32px;
+        margin-bottom: 40px;
+        color: white;
+    }
 </style>
 </head>
 <body>
 
-<h1>⚔️ NEON STICK FIGHT ⚔️</h1>
+<!-- UI Overlay for Gameplay -->
+<div id="ui" class="hidden">
+    <h1>⚔️ NEON STICK FIGHT ⚔️</h1>
+    <div style="display: flex; justify-content: space-around; width: 100%;">
+        <div class="bar"><div id="hp1" class="hp"></div></div>
+        <div class="bar"><div id="hp2" class="hp"></div></div>
+    </div>
+</div>
 
-<div id="ui">
-    <div class="bar"><div id="hp1" class="hp"></div></div>
-    <div class="bar"><div id="hp2" class="hp"></div></div>
+<!-- Start Screen -->
+<div id="start-screen" class="screen">
+    <div class="menu-content">
+        <h1 style="font-size: 48px; margin-bottom: 30px;">NEON STICK FIGHT</h1>
+        <div class="color-picker-row">
+            <div class="player-config">
+                <h3>JOUEUR 1</h3>
+                <input type="color" id="p1-color" value="#00ffff">
+            </div>
+            <div class="player-config">
+                <h3>JOUEUR 2</h3>
+                <input type="color" id="p2-color" value="#ff00ff">
+            </div>
+        </div>
+        <button id="start-btn">JOUER</button>
+    </div>
+</div>
+
+<!-- Game Over Screen -->
+<div id="game-over-screen" class="screen hidden">
+    <div class="menu-content">
+        <h1 id="gameover-title">GAME OVER</h1>
+        <div id="winner-text">PLAYER 1 WINS!</div>
+        <button id="restart-btn">REJOUER</button>
+    </div>
 </div>
 
 <canvas id="game" width="1000" height="500"></canvas>
@@ -66,8 +177,46 @@ const ctx = canvas.getContext("2d");
 const GRAVITY = 0.6;
 const GROUND = 420;
 
+// Game State
+let gameState = "MENU"; // MENU, PLAYING, GAMEOVER
 let freezeFrames = 0;
 let shake = 0;
+
+// UI Elements
+const uiDiv = document.getElementById("ui");
+const startScreen = document.getElementById("start-screen");
+const gameOverScreen = document.getElementById("game-over-screen");
+const startBtn = document.getElementById("start-btn");
+const restartBtn = document.getElementById("restart-btn");
+const p1ColorInput = document.getElementById("p1-color");
+const p2ColorInput = document.getElementById("p2-color");
+const winnerText = document.getElementById("winner-text");
+
+// Event Listeners for UI
+startBtn.addEventListener("click", () => {
+    gameState = "PLAYING";
+    startScreen.classList.add("hidden");
+    uiDiv.classList.remove("hidden");
+    resetGame();
+});
+
+restartBtn.addEventListener("click", () => {
+    resetGame();
+    gameState = "MENU";
+    gameOverScreen.classList.add("hidden");
+    startScreen.classList.remove("hidden");
+    // uiDiv remains hidden until Play is clicked again
+});
+
+p1ColorInput.addEventListener("input", (e) => {
+    p1.color = e.target.value;
+    p1.originalColor = e.target.value;
+});
+
+p2ColorInput.addEventListener("input", (e) => {
+    p2.color = e.target.value;
+    p2.originalColor = e.target.value;
+});
 
 // Power Block logic
 class PowerBlock {
@@ -81,16 +230,19 @@ class PowerBlock {
         this.type = "damage"; // damage, shield, health
     }
 
+    reset() {
+        this.active = false;
+        this.spawnTimer = 0;
+    }
+
     update() {
         if (this.active) return; // Already spawned
 
-        // Random spawn every ~5 seconds (300 frames) - Increased frequency
+        // Random spawn every ~5 seconds (300 frames)
         this.spawnTimer++;
         if (this.spawnTimer > 300 && Math.random() < 0.01) {
             this.active = true;
             this.x = 100 + Math.random() * (canvas.width - 200); // Random X
-            // Lowered spawn height further to be consistently reachable
-            // GROUND is 420. Y between 260 and 340.
             this.y = GROUND - 80 - Math.random() * 80;
 
             // Randomize Type
@@ -140,6 +292,7 @@ const powerBlock = new PowerBlock();
 
 class Fighter {
     constructor(x, color, controls) {
+        this.startX = x; // Store initial X
         this.x = x;
         this.y = GROUND;
         this.vx = 0;
@@ -156,6 +309,21 @@ class Fighter {
         this.hasPower = false;
         this.hasShield = false;
         this.attackCooldown = false;
+    }
+
+    reset() {
+        this.x = this.startX;
+        this.y = GROUND;
+        this.vx = 0;
+        this.vy = 0;
+        this.health = 100;
+        this.attacking = false;
+        this.invincible = false;
+        this.hasPower = false;
+        this.hasShield = false;
+        this.attackCooldown = false;
+        this.color = this.originalColor;
+        this.facing = this.startX < 500 ? 1 : -1; // Face center
     }
 
     collectPower(type) {
@@ -249,16 +417,9 @@ class Fighter {
 
         // Body Collision with PowerBlock (Collect by touch)
         if (powerBlock.active) {
-             // Center of player approx (x, y-40).
-             // Center of block (block.x+20, block.y+20).
-             // Simple rect overlap:
-             // Player X +/- 20, Y +/- 40 (approx).
-             // Block X +/- 20, Y +/- 20.
-             // Distance check:
              const dx = Math.abs(this.x - (powerBlock.x + 20));
              const dy = Math.abs((this.y - 40) - (powerBlock.y + 20));
 
-             // Combined half-widths: 20+20=40. Combined half-heights: 40+20=60.
              if (dx < 40 && dy < 60) {
                  powerBlock.active = false;
                  this.collectPower(powerBlock.type);
@@ -301,8 +462,6 @@ class Fighter {
                     if (target.hasShield) {
                         target.hasShield = false; // Break shield
                         shake = 5; // Minor shake for impact
-                        // No damage, no freezeFrames, no invincibility?
-                        // Let's add minor freeze
                         freezeFrames = 2;
                     } else {
                         target.health -= damage;
@@ -318,7 +477,7 @@ class Fighter {
             }
             // Attack duration 200ms
             setTimeout(() => this.attacking = false, 200);
-            // Cooldown 400ms (total time between starts of attacks)
+            // Cooldown 400ms
             setTimeout(() => this.attackCooldown = false, 400);
         }
     }
@@ -350,6 +509,9 @@ const p2 = new Fighter(700, "#ff00ff", {
     attackLight: "Enter",
     attackHeavy: "Shift"
 });
+
+// Set initial facing for P2
+p2.facing = -1;
 
 function handleInput(p, enemy) {
     p.vx = 0;
@@ -389,46 +551,79 @@ function updateUI() {
     document.getElementById("hp2").style.width = Math.max(0, p2.health) + "%";
 }
 
+function resetGame() {
+    p1.reset();
+    p2.reset();
+    powerBlock.reset();
+    freezeFrames = 0;
+    shake = 0;
+    updateUI();
+}
+
+function checkGameOver() {
+    if (p1.health <= 0 || p2.health <= 0) {
+        gameState = "GAMEOVER";
+        uiDiv.classList.add("hidden");
+        gameOverScreen.classList.remove("hidden");
+
+        if (p1.health <= 0 && p2.health <= 0) {
+            winnerText.innerText = "DRAW!";
+            winnerText.style.color = "white";
+        } else if (p1.health <= 0) {
+            winnerText.innerText = "PLAYER 2 WINS!";
+            winnerText.style.color = p2.color;
+        } else {
+            winnerText.innerText = "PLAYER 1 WINS!";
+            winnerText.style.color = p1.color;
+        }
+    }
+}
+
 function gameLoop() {
     // Reset transform to clear properly
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Shake effect
-    if (shake > 0) {
-        ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
-        shake *= 0.9;
-        if (shake < 0.5) shake = 0;
+    if (gameState === "MENU") {
+        drawGround();
+        // Draw static fighters as preview
+        p1.draw();
+        p2.draw();
+    }
+    else if (gameState === "PLAYING") {
+        // Shake effect
+        if (shake > 0) {
+            ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+            shake *= 0.9;
+            if (shake < 0.5) shake = 0;
+        }
+
+        if (freezeFrames > 0) {
+            freezeFrames--;
+        } else {
+            powerBlock.update();
+            handleInput(p1, p2);
+            handleInput(p2, p1);
+            p1.update();
+            p2.update();
+        }
+
+        drawGround();
+        powerBlock.draw();
+        p1.draw();
+        p2.draw();
+        updateUI();
+        checkGameOver();
+    }
+    else if (gameState === "GAMEOVER") {
+        // Just draw the last frame state (static) without updates
+        drawGround();
+        powerBlock.draw();
+        p1.draw();
+        p2.draw();
     }
 
-    if (freezeFrames > 0) {
-        freezeFrames--;
-    } else {
-        powerBlock.update(); // Update spawn timer
-
-        handleInput(p1, p2);
-        handleInput(p2, p1);
-
-        p1.update();
-        p2.update();
-    }
-
-    drawGround();
-    powerBlock.draw();
-    p1.draw();
-    p2.draw();
-
-    updateUI();
-
-    if (p1.health > 0 && p2.health > 0)
-        requestAnimationFrame(gameLoop);
-    else {
-        ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset for text
-        ctx.fillStyle = "#00ffff";
-        ctx.font = "48px sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText("FIN DU COMBAT", canvas.width / 2, canvas.height / 2);
-    }
+    requestAnimationFrame(gameLoop);
 }
 
 gameLoop();
