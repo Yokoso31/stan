@@ -69,6 +69,53 @@ const GROUND = 420;
 let freezeFrames = 0;
 let shake = 0;
 
+// Power Block logic
+class PowerBlock {
+    constructor() {
+        this.active = false;
+        this.width = 40;
+        this.height = 40;
+        this.x = 0;
+        this.y = 0;
+        this.spawnTimer = 0;
+    }
+
+    update() {
+        if (this.active) return; // Already spawned
+
+        // Random spawn every ~10-15 seconds (600-900 frames)
+        this.spawnTimer++;
+        if (this.spawnTimer > 600 && Math.random() < 0.005) {
+            this.active = true;
+            this.x = 100 + Math.random() * (canvas.width - 200); // Random X
+            this.y = GROUND - 100 - Math.random() * 150; // Random height above ground
+            this.spawnTimer = 0;
+        }
+    }
+
+    draw() {
+        if (!this.active) return;
+
+        ctx.fillStyle = "#FFD700"; // Gold color
+        ctx.shadowColor = "#FFD700";
+        ctx.shadowBlur = 20;
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+
+        // Inner detail
+        ctx.strokeStyle = "#FFF";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(this.x, this.y, this.width, this.height);
+
+        // Pulse effect or text
+        ctx.fillStyle = "black";
+        ctx.font = "20px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("P", this.x + this.width/2, this.y + 28);
+    }
+}
+
+const powerBlock = new PowerBlock();
+
 class Fighter {
     constructor(x, color, controls) {
         this.x = x;
@@ -78,18 +125,29 @@ class Fighter {
         this.width = 40;
         this.height = 80;
         this.color = color;
+        this.originalColor = color;
         this.health = 100;
         this.attacking = false;
         this.controls = controls;
         this.facing = 1;
         this.invincible = false;
+        this.hasPower = false;
+    }
+
+    activatePower() {
+        this.hasPower = true;
+        this.color = "#FFD700"; // Gold
+        setTimeout(() => {
+            this.hasPower = false;
+            this.color = this.originalColor;
+        }, 5000); // 5 seconds duration
     }
 
     draw() {
         ctx.strokeStyle = this.color;
         ctx.lineWidth = 4;
         ctx.shadowColor = this.color;
-        ctx.shadowBlur = 15;
+        ctx.shadowBlur = this.hasPower ? 30 : 15; // More glow if powered
 
         // Visual indicator for invincibility (blinking/opacity)
         if (this.invincible) {
@@ -116,8 +174,8 @@ class Fighter {
         // Attack visual effect
         if (this.attacking) {
              ctx.beginPath();
-             ctx.strokeStyle = "white";
-             ctx.lineWidth = 2;
+             ctx.strokeStyle = this.hasPower ? "#FFD700" : "white";
+             ctx.lineWidth = this.hasPower ? 6 : 2; // Bigger swipe if powered
              ctx.moveTo(this.x + 40 * this.facing, this.y - 45);
              ctx.quadraticCurveTo(this.x + 70 * this.facing, this.y - 30, this.x + 40 * this.facing, this.y - 15);
              ctx.stroke();
@@ -155,9 +213,28 @@ class Fighter {
         // Prevent attack if already attacking OR if invincible (can't attack while hit/invincible)
         if (!this.attacking && !this.invincible) {
             this.attacking = true;
+
+            // Check collision with PowerBlock
+            if (powerBlock.active) {
+                // Simple box collision
+                // Attack range is roughly x to x + 60
+                const attackRangeX = this.facing === 1 ? this.x + 60 : this.x - 60;
+                // Check if powerblock is within reach
+                // Simplified: distance check
+                const dx = Math.abs(this.x - (powerBlock.x + powerBlock.width/2));
+                const dy = Math.abs((this.y - 40) - (powerBlock.y + powerBlock.height/2)); // Assuming attack is near torso height
+
+                if (dx < 60 && dy < 80) {
+                    powerBlock.active = false;
+                    this.activatePower();
+                }
+            }
+
             let damage = 10;
             if (type === "light") damage = 5;
             if (type === "heavy") damage = 15;
+
+            if (this.hasPower) damage *= 2; // Double damage
 
             // Only calculate hit if target is not invincible
             if (!target.invincible) {
@@ -252,6 +329,8 @@ function gameLoop() {
     if (freezeFrames > 0) {
         freezeFrames--;
     } else {
+        powerBlock.update(); // Update spawn timer
+
         handleInput(p1, p2);
         handleInput(p2, p1);
 
@@ -260,6 +339,7 @@ function gameLoop() {
     }
 
     drawGround();
+    powerBlock.draw();
     p1.draw();
     p2.draw();
 
