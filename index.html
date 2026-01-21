@@ -421,6 +421,9 @@ class Fighter {
         this.isCrouching = false;
         this.canCrouch = true;
         this.crouchStartTime = 0;
+
+        // Animation
+        this.animFrame = 0;
     }
 
     reset() {
@@ -441,6 +444,7 @@ class Fighter {
         this.crouchStartTime = 0;
         this.color = this.originalColor;
         this.facing = this.startX < 500 ? 1 : -1; // Face center
+        this.animFrame = 0;
     }
 
     collectPower(type) {
@@ -470,7 +474,7 @@ class Fighter {
         }
 
         if (this.isCrouching) {
-            // Draw Crouched
+            // Draw Crouched (Static/Simple for now, or could animate breath)
 
             // Tête (Lower)
             ctx.beginPath();
@@ -510,51 +514,91 @@ class Fighter {
             }
 
         } else {
-            // Draw Standing
+            // Draw Standing (Animated)
+
+            // Idle breathing Y offset
+            let breathY = 0;
+            if (this.vx === 0) {
+                breathY = Math.sin(this.animFrame * 0.1) * 2;
+            }
 
             // Tête
             ctx.beginPath();
-            ctx.arc(this.x, this.y - 70, 10, 0, Math.PI * 2);
+            ctx.arc(this.x, this.y - 70 + breathY, 10, 0, Math.PI * 2);
             ctx.stroke();
 
             // Corps
             ctx.beginPath();
-            ctx.moveTo(this.x, this.y - 60);
-            ctx.lineTo(this.x, this.y);
+            ctx.moveTo(this.x, this.y - 60 + breathY);
+            ctx.lineTo(this.x, this.y); // Hips don't move vertically as much, or anchor legs?
             ctx.stroke();
 
             // Bras
             ctx.beginPath();
-            ctx.moveTo(this.x, this.y - 40);
-            // Arm position changes if holding pistol
+            ctx.moveTo(this.x, this.y - 40 + breathY);
+
+            // Arm Animation logic
             if (this.hasPistol) {
                  // Aim straight
-                 ctx.lineTo(this.x + 40 * this.facing, this.y - 40);
+                 ctx.lineTo(this.x + 40 * this.facing, this.y - 40 + breathY);
             } else {
-                 ctx.lineTo(this.x + (this.attacking ? 60 * this.facing : 25 * this.facing), this.y - 30);
+                 // Swing arms if moving
+                 let armSwing = 0;
+                 if (this.vx !== 0) {
+                     armSwing = Math.sin(this.animFrame * 0.2) * 15;
+                 }
+
+                 if (this.attacking) {
+                     // Attack override
+                     ctx.lineTo(this.x + 60 * this.facing, this.y - 30 + breathY);
+                 } else {
+                     // Idle/Run
+                     // Arm ends
+                     ctx.lineTo(this.x + 25 * this.facing + armSwing, this.y - 30 + breathY);
+                 }
             }
             ctx.stroke();
 
             // Draw Pistol in hand
             if (this.hasPistol) {
                 ctx.fillStyle = "#FFF";
-                ctx.fillRect(this.x + 40 * this.facing, this.y - 45, 20 * this.facing, 10);
-                ctx.fillRect(this.x + 40 * this.facing, this.y - 45, 5 * this.facing, 15);
+                ctx.fillRect(this.x + 40 * this.facing, this.y - 45 + breathY, 20 * this.facing, 10);
+                ctx.fillRect(this.x + 40 * this.facing, this.y - 45 + breathY, 5 * this.facing, 15);
             }
 
-            // Jambes
+            // Jambes (Animated)
             ctx.beginPath();
-            ctx.moveTo(this.x, this.y);
-            ctx.lineTo(this.x - 15, this.y + 30);
-            ctx.moveTo(this.x, this.y);
-            ctx.lineTo(this.x + 15, this.y + 30);
+
+            if (this.y < GROUND) { // Jump Pose
+                // Knees up
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x - 10, this.y + 15);
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x + 10, this.y + 20);
+            } else if (this.vx !== 0) { // Run Cycle
+                const legOffset = Math.sin(this.animFrame * 0.2) * 20;
+
+                // Leg 1
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x - legOffset, this.y + 30);
+
+                // Leg 2
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x + legOffset, this.y + 30);
+
+            } else { // Stand
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x - 15, this.y + 30);
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x + 15, this.y + 30);
+            }
             ctx.stroke();
         }
 
         // Attack visual effect (Melee only)
         if (this.attacking && !this.hasPistol) {
              const yOffset = this.isCrouching ? -25 : -45;
-             const curveOffset = this.isCrouching ? 20 : 30; // height diff
+             // Animation effect for sword swing?
 
              ctx.beginPath();
              ctx.strokeStyle = this.hasPower ? "#FFD700" : "white";
@@ -586,6 +630,13 @@ class Fighter {
     update() {
         this.x += this.vx;
         this.y += this.vy;
+
+        // Animation Frame Update
+        if (this.vx !== 0) {
+            this.animFrame += 1; // Faster when moving
+        } else {
+            this.animFrame += 0.2; // Slower idle breath
+        }
 
         if (this.y < GROUND) this.vy += GRAVITY;
         else {
