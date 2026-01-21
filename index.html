@@ -416,6 +416,9 @@ class Fighter {
         // Pistol State
         this.hasPistol = false;
         this.ammo = 0;
+
+        // Crouch State
+        this.isCrouching = false;
     }
 
     reset() {
@@ -431,6 +434,7 @@ class Fighter {
         this.attackCooldown = false;
         this.hasPistol = false;
         this.ammo = 0;
+        this.isCrouching = false;
         this.color = this.originalColor;
         this.facing = this.startX < 500 ? 1 : -1; // Face center
     }
@@ -461,63 +465,113 @@ class Fighter {
             ctx.globalAlpha = 0.5;
         }
 
-        // Tête
-        ctx.beginPath();
-        ctx.arc(this.x, this.y - 70, 10, 0, Math.PI * 2);
-        ctx.stroke();
+        if (this.isCrouching) {
+            // Draw Crouched
 
-        // Corps
-        ctx.beginPath();
-        ctx.moveTo(this.x, this.y - 60);
-        ctx.lineTo(this.x, this.y);
-        ctx.stroke();
+            // Tête (Lower)
+            ctx.beginPath();
+            ctx.arc(this.x, this.y - 35, 10, 0, Math.PI * 2);
+            ctx.stroke();
 
-        // Bras
-        ctx.beginPath();
-        ctx.moveTo(this.x, this.y - 40);
-        // Arm position changes if holding pistol
-        if (this.hasPistol) {
-             // Aim straight
-             ctx.lineTo(this.x + 40 * this.facing, this.y - 40);
+            // Corps (Shorter)
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y - 25);
+            ctx.lineTo(this.x, this.y);
+            ctx.stroke();
+
+            // Bras
+            ctx.beginPath();
+            if (this.hasPistol) {
+                ctx.moveTo(this.x, this.y - 25);
+                ctx.lineTo(this.x + 40 * this.facing, this.y - 25);
+            } else {
+                ctx.moveTo(this.x, this.y - 25);
+                ctx.lineTo(this.x + (this.attacking ? 60 * this.facing : 25 * this.facing), this.y - 20);
+            }
+            ctx.stroke();
+
+            // Jambes (Spread)
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.x - 20, this.y + 10);
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.x + 20, this.y + 10);
+            ctx.stroke();
+
+            // Draw Pistol in hand
+            if (this.hasPistol) {
+                ctx.fillStyle = "#FFF";
+                ctx.fillRect(this.x + 40 * this.facing, this.y - 30, 20 * this.facing, 10);
+                ctx.fillRect(this.x + 40 * this.facing, this.y - 30, 5 * this.facing, 15);
+            }
+
         } else {
-             ctx.lineTo(this.x + (this.attacking ? 60 * this.facing : 25 * this.facing), this.y - 30);
-        }
-        ctx.stroke();
+            // Draw Standing
 
-        // Draw Pistol in hand
-        if (this.hasPistol) {
-            ctx.fillStyle = "#FFF";
-            ctx.fillRect(this.x + 40 * this.facing, this.y - 45, 20 * this.facing, 10);
-            ctx.fillRect(this.x + 40 * this.facing, this.y - 45, 5 * this.facing, 15);
+            // Tête
+            ctx.beginPath();
+            ctx.arc(this.x, this.y - 70, 10, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Corps
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y - 60);
+            ctx.lineTo(this.x, this.y);
+            ctx.stroke();
+
+            // Bras
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y - 40);
+            // Arm position changes if holding pistol
+            if (this.hasPistol) {
+                 // Aim straight
+                 ctx.lineTo(this.x + 40 * this.facing, this.y - 40);
+            } else {
+                 ctx.lineTo(this.x + (this.attacking ? 60 * this.facing : 25 * this.facing), this.y - 30);
+            }
+            ctx.stroke();
+
+            // Draw Pistol in hand
+            if (this.hasPistol) {
+                ctx.fillStyle = "#FFF";
+                ctx.fillRect(this.x + 40 * this.facing, this.y - 45, 20 * this.facing, 10);
+                ctx.fillRect(this.x + 40 * this.facing, this.y - 45, 5 * this.facing, 15);
+            }
+
+            // Jambes
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.x - 15, this.y + 30);
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.x + 15, this.y + 30);
+            ctx.stroke();
         }
 
         // Attack visual effect (Melee only)
         if (this.attacking && !this.hasPistol) {
+             const yOffset = this.isCrouching ? -25 : -45;
+             const curveOffset = this.isCrouching ? 20 : 30; // height diff
+
              ctx.beginPath();
              ctx.strokeStyle = this.hasPower ? "#FFD700" : "white";
-             ctx.lineWidth = this.hasPower ? 6 : 2; // Bigger swipe if powered
-             ctx.moveTo(this.x + 40 * this.facing, this.y - 45);
-             ctx.quadraticCurveTo(this.x + 70 * this.facing, this.y - 30, this.x + 40 * this.facing, this.y - 15);
+             ctx.lineWidth = this.hasPower ? 6 : 2;
+             ctx.moveTo(this.x + 40 * this.facing, this.y + yOffset);
+             ctx.quadraticCurveTo(this.x + 70 * this.facing, this.y + yOffset + 15, this.x + 40 * this.facing, this.y + yOffset + 30);
              ctx.stroke();
              // Restore style
              ctx.strokeStyle = this.color;
              ctx.lineWidth = 4;
         }
 
-        // Jambes
-        ctx.beginPath();
-        ctx.moveTo(this.x, this.y);
-        ctx.lineTo(this.x - 15, this.y + 30);
-        ctx.moveTo(this.x, this.y);
-        ctx.lineTo(this.x + 15, this.y + 30);
-        ctx.stroke();
-
         // Shield Visual
         if (this.hasShield) {
             ctx.beginPath();
             ctx.strokeStyle = "#00FFFF";
             ctx.lineWidth = 3;
-            ctx.arc(this.x, this.y - 35, 50, 0, Math.PI * 2);
+            // Adjust shield center for crouching
+            const shieldY = this.isCrouching ? this.y - 15 : this.y - 35;
+            const shieldR = this.isCrouching ? 35 : 50;
+            ctx.arc(this.x, shieldY, shieldR, 0, Math.PI * 2);
             ctx.stroke();
         }
 
@@ -573,9 +627,12 @@ class Fighter {
             if (this.hasPistol && this.ammo > 0) {
                 this.ammo--;
                 // Spawn Bullet
+                // Adjust height for crouching
+                const yShot = this.isCrouching ? this.y - 25 : this.y - 40;
+
                 bullets.push(new Bullet(
-                    this.x + 60 * this.facing, // Start at gun tip
-                    this.y - 40,
+                    this.x + 60 * this.facing,
+                    yShot,
                     15 * this.facing, // High speed
                     this.color,
                     this // Owner
@@ -613,6 +670,10 @@ class Fighter {
 
             // Only calculate hit if target is not invincible
             if (!target.invincible) {
+                // Adjust hit logic for crouching target?
+                // Melee hits usually hit regardless of crouch unless high/low implemented.
+                // Assuming melee hits simple distance check.
+
                 const hit = Math.abs(this.x - target.x) < 50;
                 if (hit) {
                     // Check Shield
@@ -655,6 +716,7 @@ const p1 = new Fighter(300, "#00ffff", {
     left: "q",
     right: "d",
     jump: "z",
+    crouch: "s",
     attackLight: "e",
     attackHeavy: "r"
 });
@@ -663,6 +725,7 @@ const p2 = new Fighter(700, "#ff00ff", {
     left: "ArrowLeft",
     right: "ArrowRight",
     jump: "ArrowUp",
+    crouch: "ArrowDown",
     attackLight: "Enter",
     attackHeavy: "Shift"
 });
@@ -673,17 +736,30 @@ p2.facing = -1;
 function handleInput(p, enemy) {
     p.vx = 0;
 
-    if (keys[p.controls.left.toLowerCase()]) {
-        p.vx = -4;
-        p.facing = -1;
+    // Crouch Logic
+    if (keys[p.controls.crouch.toLowerCase()]) {
+        p.isCrouching = true;
+        p.height = 35; // Lower height
+    } else {
+        p.isCrouching = false;
+        p.height = 80; // Standard height
     }
-    if (keys[p.controls.right.toLowerCase()]) {
-        p.vx = 4;
-        p.facing = 1;
+
+    if (!p.isCrouching) {
+        if (keys[p.controls.left.toLowerCase()]) {
+            p.vx = -4;
+            p.facing = -1;
+        }
+        if (keys[p.controls.right.toLowerCase()]) {
+            p.vx = 4;
+            p.facing = 1;
+        }
     }
-    if (keys[p.controls.jump.toLowerCase()] && p.vy === 0) {
+
+    if (keys[p.controls.jump.toLowerCase()] && p.vy === 0 && !p.isCrouching) {
         p.vy = -12;
     }
+
     if (keys[p.controls.attackLight.toLowerCase()]) {
         p.attack(enemy, "light");
     }
@@ -752,10 +828,10 @@ function updateBullets() {
         // Check collision with enemy
         let target = b.owner === p1 ? p2 : p1;
 
-        // Simple hit box (Target X +/- 20, Y 0 to -80)
+        // Simple hit box (Target X +/- 20, Y 0 to -height)
         // Bullet is point
         if (b.x > target.x - 20 && b.x < target.x + 20 &&
-            b.y > target.y - 80 && b.y < target.y) {
+            b.y > target.y - target.height && b.y < target.y) {
 
             b.active = false;
 
