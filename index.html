@@ -419,6 +419,8 @@ class Fighter {
 
         // Crouch State
         this.isCrouching = false;
+        this.canCrouch = true;
+        this.crouchStartTime = 0;
     }
 
     reset() {
@@ -435,6 +437,8 @@ class Fighter {
         this.hasPistol = false;
         this.ammo = 0;
         this.isCrouching = false;
+        this.canCrouch = true;
+        this.crouchStartTime = 0;
         this.color = this.originalColor;
         this.facing = this.startX < 500 ? 1 : -1; // Face center
     }
@@ -742,13 +746,35 @@ p2.facing = -1;
 function handleInput(p, enemy) {
     p.vx = 0;
 
-    // Crouch Logic
-    if (keys[p.controls.crouch.toLowerCase()]) {
-        p.isCrouching = true;
-        p.height = 35; // Lower height
+    // Crouch Logic with Limits
+    const crouchKey = keys[p.controls.crouch.toLowerCase()];
+
+    if (crouchKey && p.canCrouch) {
+        if (!p.isCrouching) {
+            // Start Crouch
+            p.isCrouching = true;
+            p.crouchStartTime = Date.now();
+            p.height = 35;
+        } else {
+            // Check max duration (1000ms)
+            if (Date.now() - p.crouchStartTime > 1000) {
+                // Force stand up and cooldown
+                p.isCrouching = false;
+                p.height = 80;
+                p.canCrouch = false;
+                setTimeout(() => p.canCrouch = true, 3000);
+            }
+        }
     } else {
-        p.isCrouching = false;
-        p.height = 80; // Standard height
+        // Key released OR cannot crouch (cooldown or forced end)
+        if (p.isCrouching) {
+            // Manual stand up -> Start cooldown
+            p.isCrouching = false;
+            p.height = 80;
+            p.canCrouch = false;
+            setTimeout(() => p.canCrouch = true, 3000);
+        }
+        // If not crouching, do nothing (waiting for cooldown or input)
     }
 
     if (!p.isCrouching) {
