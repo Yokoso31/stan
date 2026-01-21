@@ -181,6 +181,7 @@ const GROUND = 420;
 let gameState = "MENU"; // MENU, PLAYING, GAMEOVER
 let freezeFrames = 0;
 let shake = 0;
+let bullets = [];
 
 // UI Elements
 const uiDiv = document.getElementById("ui");
@@ -205,7 +206,6 @@ restartBtn.addEventListener("click", () => {
     gameState = "MENU";
     gameOverScreen.classList.add("hidden");
     startScreen.classList.remove("hidden");
-    // uiDiv remains hidden until Play is clicked again
 });
 
 p1ColorInput.addEventListener("input", (e) => {
@@ -217,6 +217,109 @@ p2ColorInput.addEventListener("input", (e) => {
     p2.color = e.target.value;
     p2.originalColor = e.target.value;
 });
+
+// Bullet Logic
+class Bullet {
+    constructor(x, y, vx, color, owner) {
+        this.x = x;
+        this.y = y;
+        this.vx = vx;
+        this.color = color;
+        this.owner = owner;
+        this.active = true;
+        this.width = 15;
+        this.height = 5;
+    }
+
+    update() {
+        this.x += this.vx;
+        // Off screen check
+        if (this.x < 0 || this.x > canvas.width) this.active = false;
+    }
+
+    draw() {
+        if (!this.active) return;
+        ctx.fillStyle = this.color;
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 10;
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        ctx.shadowBlur = 0;
+    }
+}
+
+// Pistol Drop Logic
+class PistolDrop {
+    constructor() {
+        this.active = false;
+        this.x = 0;
+        this.y = 0;
+        this.vy = 0;
+        this.width = 30;
+        this.height = 20;
+        this.spawnTimer = 0;
+    }
+
+    reset() {
+        this.active = false;
+        this.spawnTimer = 0;
+    }
+
+    update() {
+        // Spawn Logic
+        if (!this.active) {
+            this.spawnTimer++;
+            // Rare spawn (every ~10s or 600 frames)
+            if (this.spawnTimer > 600 && Math.random() < 0.005) {
+                this.active = true;
+                this.x = 100 + Math.random() * (canvas.width - 200);
+                this.y = -50; // Start above screen
+                this.vy = 0;
+                this.spawnTimer = 0;
+            }
+            return;
+        }
+
+        // Falling Logic
+        this.y += this.vy;
+        if (this.y < GROUND) {
+            this.vy += GRAVITY;
+        } else {
+            this.y = GROUND;
+            this.vy = 0;
+        }
+    }
+
+    draw() {
+        if (!this.active) return;
+
+        ctx.save();
+        ctx.translate(this.x, this.y - 20); // Draw anchored at bottom
+
+        // Draw Pistol Shape
+        ctx.fillStyle = "#FFF";
+        ctx.strokeStyle = "#00FFFF";
+        ctx.lineWidth = 2;
+        ctx.shadowColor = "#00FFFF";
+        ctx.shadowBlur = 15;
+
+        ctx.beginPath();
+        // L shape
+        ctx.moveTo(0, 0);
+        ctx.lineTo(20, 0); // Barrel
+        ctx.lineTo(20, 10);
+        ctx.lineTo(5, 10);
+        ctx.lineTo(5, 20); // Handle
+        ctx.lineTo(0, 20);
+        ctx.closePath();
+
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.restore();
+    }
+}
+
+const pistolDrop = new PistolDrop();
 
 // Power Block logic
 class PowerBlock {
@@ -309,6 +412,10 @@ class Fighter {
         this.hasPower = false;
         this.hasShield = false;
         this.attackCooldown = false;
+
+        // Pistol State
+        this.hasPistol = false;
+        this.ammo = 0;
     }
 
     reset() {
@@ -322,6 +429,8 @@ class Fighter {
         this.hasPower = false;
         this.hasShield = false;
         this.attackCooldown = false;
+        this.hasPistol = false;
+        this.ammo = 0;
         this.color = this.originalColor;
         this.facing = this.startX < 500 ? 1 : -1; // Face center
     }
@@ -366,11 +475,24 @@ class Fighter {
         // Bras
         ctx.beginPath();
         ctx.moveTo(this.x, this.y - 40);
-        ctx.lineTo(this.x + (this.attacking ? 60 * this.facing : 25 * this.facing), this.y - 30);
+        // Arm position changes if holding pistol
+        if (this.hasPistol) {
+             // Aim straight
+             ctx.lineTo(this.x + 40 * this.facing, this.y - 40);
+        } else {
+             ctx.lineTo(this.x + (this.attacking ? 60 * this.facing : 25 * this.facing), this.y - 30);
+        }
         ctx.stroke();
 
-        // Attack visual effect
-        if (this.attacking) {
+        // Draw Pistol in hand
+        if (this.hasPistol) {
+            ctx.fillStyle = "#FFF";
+            ctx.fillRect(this.x + 40 * this.facing, this.y - 45, 20 * this.facing, 10);
+            ctx.fillRect(this.x + 40 * this.facing, this.y - 45, 5 * this.facing, 15);
+        }
+
+        // Attack visual effect (Melee only)
+        if (this.attacking && !this.hasPistol) {
              ctx.beginPath();
              ctx.strokeStyle = this.hasPower ? "#FFD700" : "white";
              ctx.lineWidth = this.hasPower ? 6 : 2; // Bigger swipe if powered
@@ -425,6 +547,20 @@ class Fighter {
                  this.collectPower(powerBlock.type);
              }
         }
+
+        // Body Collision with PistolDrop
+        if (pistolDrop.active) {
+            // Pistol is at pistolDrop.x, pistolDrop.y - 20 (drawn there)
+            // But logic coordinates: y is ground.
+            const dx = Math.abs(this.x - (pistolDrop.x + 10)); // +10 center
+            const dy = Math.abs(this.y - pistolDrop.y);
+
+            if (dx < 40 && dy < 60) {
+                pistolDrop.active = false;
+                this.hasPistol = true;
+                this.ammo = 6;
+            }
+        }
     }
 
     attack(target, type = "light") {
@@ -433,12 +569,33 @@ class Fighter {
             this.attacking = true;
             this.attackCooldown = true;
 
+            // PISTOL SHOOTING
+            if (this.hasPistol && this.ammo > 0) {
+                this.ammo--;
+                // Spawn Bullet
+                bullets.push(new Bullet(
+                    this.x + 60 * this.facing, // Start at gun tip
+                    this.y - 40,
+                    15 * this.facing, // High speed
+                    this.color,
+                    this // Owner
+                ));
+
+                if (this.ammo <= 0) this.hasPistol = false;
+
+                // Quick cooldown for shooting
+                setTimeout(() => this.attacking = false, 100);
+                setTimeout(() => this.attackCooldown = false, 300);
+                return;
+            }
+
+            // --- MELEE ATTACK ---
+
             // Check collision with PowerBlock (Attack range)
             if (powerBlock.active) {
                 const dx = Math.abs(this.x - (powerBlock.x + powerBlock.width/2));
                 const dy = Math.abs((this.y - 40) - (powerBlock.y + powerBlock.height/2));
 
-                // Direction Check: Must face the block to hit it
                 const directionToBlock = (powerBlock.x + 20) - this.x;
                 const facingCorrect = (directionToBlock * this.facing) > 0;
 
@@ -555,6 +712,8 @@ function resetGame() {
     p1.reset();
     p2.reset();
     powerBlock.reset();
+    pistolDrop.reset();
+    bullets = [];
     freezeFrames = 0;
     shake = 0;
     updateUI();
@@ -575,6 +734,40 @@ function checkGameOver() {
         } else {
             winnerText.innerText = "PLAYER 1 WINS!";
             winnerText.style.color = p1.color;
+        }
+    }
+}
+
+function updateBullets() {
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        let b = bullets[i];
+        b.update();
+        b.draw();
+
+        if (!b.active) {
+            bullets.splice(i, 1);
+            continue;
+        }
+
+        // Check collision with enemy
+        let target = b.owner === p1 ? p2 : p1;
+
+        // Simple hit box (Target X +/- 20, Y 0 to -80)
+        // Bullet is point
+        if (b.x > target.x - 20 && b.x < target.x + 20 &&
+            b.y > target.y - 80 && b.y < target.y) {
+
+            b.active = false;
+
+            if (target.hasShield) {
+                target.hasShield = false;
+                shake = 5;
+            } else if (!target.invincible) {
+                target.health -= 20; // Pistol Damage
+                shake = 5;
+                target.invincible = true;
+                setTimeout(() => target.invincible = false, 1000); // Shorter iframe for shots
+            }
         }
     }
 }
@@ -602,14 +795,17 @@ function gameLoop() {
             freezeFrames--;
         } else {
             powerBlock.update();
+            pistolDrop.update();
             handleInput(p1, p2);
             handleInput(p2, p1);
             p1.update();
             p2.update();
+            updateBullets();
         }
 
         drawGround();
         powerBlock.draw();
+        pistolDrop.draw();
         p1.draw();
         p2.draw();
         updateUI();
