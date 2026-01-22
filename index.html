@@ -880,41 +880,71 @@ function handleBot(bot, enemy) {
     const dist = enemy.x - bot.x;
     const absDist = Math.abs(dist);
 
-    // Always face enemy
-    if (dist > 0) bot.facing = 1;
-    else bot.facing = -1;
-
-    if (bot.aiState === "APPROACH") {
-        if (absDist > bot.aiTargetDist) {
-            bot.vx = bot.facing * 4;
-        } else if (absDist < bot.aiTargetDist - 20) {
-            bot.vx = -bot.facing * 2; // Back off a bit
-        }
-
-        // Attack when in range
-        if (absDist < 80 && !bot.attacking && !bot.attackCooldown) {
-             if (Math.random() < 0.1) {
-                 const type = Math.random() < 0.7 ? "light" : "heavy";
-                 bot.attack(enemy, type);
-             }
+    // Check if we should seek items (PowerBlock or Pistol)
+    let targetItem = null;
+    if (powerBlock.active) targetItem = powerBlock;
+    // Seek pistol if we don't have one, or if it's closer than the power block
+    if (pistolDrop.active && !bot.hasPistol) {
+        if (!targetItem || Math.abs(pistolDrop.x - bot.x) < Math.abs(targetItem.x - bot.x)) {
+            targetItem = pistolDrop;
         }
     }
-    else if (bot.aiState === "RETREAT") {
-        if (absDist < bot.aiTargetDist) {
-            bot.vx = -bot.facing * 4; // Run away
+
+    if (targetItem) {
+        // --- ITEM SEEKING MODE ---
+        const dx = (targetItem.x + (targetItem.width || 20)/2) - bot.x;
+
+        // Face item
+        if (dx !== 0) bot.facing = dx > 0 ? 1 : -1;
+
+        if (Math.abs(dx) > 10) {
+            bot.vx = bot.facing * 5; // Run fast to item
         }
-        // Jump while retreating?
-        if (bot.vx !== 0 && Math.random() < 0.02 && bot.vy === 0) {
-            bot.vy = -12;
+
+        // Attack to collect PowerBlock if close
+        if (targetItem === powerBlock && Math.abs(dx) < 60 && !bot.attacking && !bot.attackCooldown) {
+            bot.attack(enemy, "light");
         }
     }
-    else if (bot.aiState === "HOLD") {
-        bot.vx = 0;
-        // Defensive crouch chance
-        if (Math.random() < 0.05 && !bot.isCrouching && bot.canCrouch) {
-             bot.isCrouching = true;
-             bot.crouchStartTime = Date.now();
-             bot.height = 35;
+    else {
+        // --- NORMAL COMBAT MODE ---
+
+        // Always face enemy
+        if (dist > 0) bot.facing = 1;
+        else bot.facing = -1;
+
+        if (bot.aiState === "APPROACH") {
+            if (absDist > bot.aiTargetDist) {
+                bot.vx = bot.facing * 4;
+            } else if (absDist < bot.aiTargetDist - 20) {
+                bot.vx = -bot.facing * 2; // Back off a bit
+            }
+
+            // Attack when in range
+            if (absDist < 80 && !bot.attacking && !bot.attackCooldown) {
+                 if (Math.random() < 0.1) {
+                     const type = Math.random() < 0.7 ? "light" : "heavy";
+                     bot.attack(enemy, type);
+                 }
+            }
+        }
+        else if (bot.aiState === "RETREAT") {
+            if (absDist < bot.aiTargetDist) {
+                bot.vx = -bot.facing * 4; // Run away
+            }
+            // Jump while retreating?
+            if (bot.vx !== 0 && Math.random() < 0.02 && bot.vy === 0) {
+                bot.vy = -12;
+            }
+        }
+        else if (bot.aiState === "HOLD") {
+            bot.vx = 0;
+            // Defensive crouch chance
+            if (Math.random() < 0.05 && !bot.isCrouching && bot.canCrouch) {
+                 bot.isCrouching = true;
+                 bot.crouchStartTime = Date.now();
+                 bot.height = 35;
+            }
         }
     }
 
