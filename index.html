@@ -82,9 +82,6 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-const playerImg = new Image();
-playerImg.src = "player.png";
-
 let score = 0;
 let lives = 3;
 let level = 1;
@@ -976,21 +973,13 @@ function draw() {
     // Joueur
     ctx.shadowBlur = 15;
     ctx.shadowColor = player.invincible ? "gold" : "cyan";
+    ctx.fillStyle = player.invincible ? "gold" : "cyan";
 
-    // Draw Sprite
-    if (playerImg.complete) {
-        ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
-    } else {
-        // Fallback
-        ctx.fillStyle = "cyan";
-        ctx.fillRect(player.x, player.y, player.width, player.height);
-    }
+    ctx.fillRect(player.x, player.y, player.width, player.height);
 
-    if (player.invincible) {
-         ctx.strokeStyle = "gold";
-         ctx.lineWidth = 2;
-         ctx.strokeRect(player.x - 2, player.y - 2, player.width + 4, player.height + 4);
-    }
+    // Engine glow
+    ctx.fillStyle = "white";
+    ctx.fillRect(player.x + 15, player.y + 10, 10, 5);
 
     if (player.shield) {
         ctx.strokeStyle = "blue";
