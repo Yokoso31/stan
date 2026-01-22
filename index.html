@@ -172,6 +172,10 @@
                 obstacles.splice(index, 1);
                 score++;
                 scoreDisplay.textContent = "Score: " + score;
+
+                if (score % 4 === 0) {
+                    speed += 1;
+                }
             }
 
             if (isColliding(dino, obs)) {
