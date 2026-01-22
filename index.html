@@ -155,7 +155,10 @@
                 <input type="color" id="p2-color" value="#ff00ff">
             </div>
         </div>
-        <button id="start-btn">JOUER</button>
+        <div style="margin-top: 20px;">
+            <button id="pve-btn">1 JOUEUR</button>
+            <button id="pvp-btn">2 JOUEURS</button>
+        </div>
     </div>
 </div>
 
@@ -193,6 +196,7 @@ function drawLimb(x, y, length, angle) {
 
 // Game State
 let gameState = "MENU"; // MENU, PLAYING, GAMEOVER
+let gameMode = "PVP"; // PVP, PVE
 let freezeFrames = 0;
 let shake = 0;
 let bullets = [];
@@ -201,19 +205,24 @@ let bullets = [];
 const uiDiv = document.getElementById("ui");
 const startScreen = document.getElementById("start-screen");
 const gameOverScreen = document.getElementById("game-over-screen");
-const startBtn = document.getElementById("start-btn");
+const pveBtn = document.getElementById("pve-btn");
+const pvpBtn = document.getElementById("pvp-btn");
 const restartBtn = document.getElementById("restart-btn");
 const p1ColorInput = document.getElementById("p1-color");
 const p2ColorInput = document.getElementById("p2-color");
 const winnerText = document.getElementById("winner-text");
 
 // Event Listeners for UI
-startBtn.addEventListener("click", () => {
+function startGame(mode) {
+    gameMode = mode;
     gameState = "PLAYING";
     startScreen.classList.add("hidden");
     uiDiv.classList.remove("hidden");
     resetGame();
-});
+}
+
+pveBtn.addEventListener("click", () => startGame("PVE"));
+pvpBtn.addEventListener("click", () => startGame("PVP"));
 
 restartBtn.addEventListener("click", () => {
     resetGame();
@@ -838,6 +847,61 @@ const p2 = new Fighter(700, "#ff00ff", {
 // Set initial facing for P2
 p2.facing = -1;
 
+function handleBot(bot, enemy) {
+    bot.vx = 0;
+
+    // Simple AI Logic
+
+    // Distance to enemy
+    const dist = enemy.x - bot.x;
+    const absDist = Math.abs(dist);
+
+    // Facing
+    if (dist > 0) bot.facing = 1;
+    else bot.facing = -1;
+
+    // Movement
+    if (absDist > 60) {
+        bot.vx = bot.facing * 4;
+    } else if (absDist < 40) {
+        // Back off slightly if too close
+        bot.vx = -bot.facing * 2;
+    }
+
+    // Jump if enemy is jumping/above and close
+    if (enemy.y < GROUND - 50 && absDist < 100 && bot.vy === 0) {
+        if (Math.random() < 0.05) bot.vy = -12;
+    }
+
+    // Attack Logic
+    if (absDist < 80 && !bot.attacking && !bot.attackCooldown) {
+        if (Math.random() < 0.1) {
+             const type = Math.random() < 0.7 ? "light" : "heavy";
+             bot.attack(enemy, type);
+        }
+    }
+
+    // Crouch Logic (Defense)
+    // If enemy is attacking and close, chance to crouch
+    if (enemy.attacking && absDist < 100) {
+        if (!bot.isCrouching && bot.canCrouch && Math.random() < 0.3) {
+            bot.isCrouching = true;
+            bot.crouchStartTime = Date.now();
+            bot.height = 35;
+        }
+    }
+
+    // Release Crouch
+    if (bot.isCrouching) {
+        if (Date.now() - bot.crouchStartTime > 500 || !enemy.attacking) {
+             bot.isCrouching = false;
+             bot.height = 80;
+             bot.canCrouch = false;
+             setTimeout(() => bot.canCrouch = true, 3000);
+        }
+    }
+}
+
 function handleInput(p, enemy) {
     p.vx = 0;
 
@@ -1000,7 +1064,13 @@ function gameLoop() {
             powerBlock.update();
             pistolDrop.update();
             handleInput(p1, p2);
-            handleInput(p2, p1);
+
+            if (gameMode === "PVE") {
+                handleBot(p2, p1);
+            } else {
+                handleInput(p2, p1);
+            }
+
             p1.update();
             p2.update();
             updateBullets();
