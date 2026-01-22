@@ -177,6 +177,10 @@ const ctx = canvas.getContext("2d");
 const GRAVITY = 0.6;
 const GROUND = 420;
 
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
 // Game State
 let gameState = "MENU"; // MENU, PLAYING, GAMEOVER
 let freezeFrames = 0;
