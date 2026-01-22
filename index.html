@@ -436,6 +436,9 @@ class Fighter {
         this.hasShield = false;
         this.attackCooldown = false;
 
+        // Wall State
+        this.onWall = false;
+
         // Pistol State
         this.hasPistol = false;
         this.ammo = 0;
@@ -468,6 +471,7 @@ class Fighter {
         this.hasPower = false;
         this.hasShield = false;
         this.attackCooldown = false;
+        this.onWall = false;
         this.hasPistol = false;
         this.ammo = 0;
         this.isCrouching = false;
@@ -616,20 +620,32 @@ class Fighter {
         this.x += this.vx;
         this.y += this.vy;
 
+        // Wall Slide Physics
+        this.onWall = false;
+        if (this.y < GROUND) {
+             // Check Left Wall
+             if (this.x <= 20 && this.vx < 0) this.onWall = true;
+             // Check Right Wall
+             if (this.x >= canvas.width - 20 && this.vx > 0) this.onWall = true;
+        }
+
+        if (this.onWall && this.vy > 0) {
+            this.vy = 2; // Slow slide
+        } else if (this.y < GROUND) {
+            this.vy += GRAVITY;
+        } else {
+            this.y = GROUND;
+            this.vy = 0;
+        }
+
+        this.x = Math.max(20, Math.min(canvas.width - 20, this.x));
+
         // Animation Frame Update
         if (this.vx !== 0) {
             this.animFrame += 0.2; // Run speed
         } else {
             this.animFrame += 0.05; // Idle speed
         }
-
-        if (this.y < GROUND) this.vy += GRAVITY;
-        else {
-            this.y = GROUND;
-            this.vy = 0;
-        }
-
-        this.x = Math.max(20, Math.min(canvas.width - 20, this.x));
 
         // --- Calculate Pose Angles ---
         // 0 = Down/Neutral. Positive = Forward/Up. Negative = Backward.
@@ -648,6 +664,14 @@ class Fighter {
                 this.pose.armFront = 0.5;
                 this.pose.armBack = -0.5;
             }
+
+        } else if (this.onWall) {
+             // Wall Slide Pose
+             this.pose.body = 0;
+             this.pose.legFront = 0.5; // Leg against wall
+             this.pose.legBack = 0.2; // Hanging leg
+             this.pose.armFront = -1.0; // Hand on wall (up)
+             this.pose.armBack = -0.5; // Other hand
 
         } else if (this.y < GROUND) {
              // Jump Pose
@@ -1023,8 +1047,17 @@ function handleInput(p, enemy) {
         }
     }
 
-    if (keys[p.controls.jump.toLowerCase()] && p.vy === 0 && !p.isCrouching) {
-        p.vy = -12;
+    // Jump Logic
+    if (keys[p.controls.jump.toLowerCase()] && !p.isCrouching) {
+        if (p.vy === 0) {
+            // Normal Jump
+            p.vy = -12;
+        } else if (p.onWall) {
+            // Wall Jump
+            p.vy = -12;
+            p.vx = (p.x < 100) ? 10 : -10; // Push away from wall
+            p.facing = (p.x < 100) ? 1 : -1; // Turn around
+        }
     }
 
     if (keys[p.controls.attackLight.toLowerCase()]) {
