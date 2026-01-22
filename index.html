@@ -850,50 +850,96 @@ p2.facing = -1;
 function handleBot(bot, enemy) {
     bot.vx = 0;
 
-    // Simple AI Logic
-
-    // Distance to enemy
-    const dist = enemy.x - bot.x;
-    const absDist = Math.abs(dist);
-
-    // Facing
-    if (dist > 0) bot.facing = 1;
-    else bot.facing = -1;
-
-    // Movement
-    if (absDist > 60) {
-        bot.vx = bot.facing * 4;
-    } else if (absDist < 40) {
-        // Back off slightly if too close
-        bot.vx = -bot.facing * 2;
+    // Initialize AI State
+    if (!bot.aiState) {
+        bot.aiState = "APPROACH"; // APPROACH, RETREAT, HOLD
+        bot.aiTimer = 0;
+        bot.aiTargetDist = 60;
     }
 
-    // Jump if enemy is jumping/above and close
-    if (enemy.y < GROUND - 50 && absDist < 100 && bot.vy === 0) {
-        if (Math.random() < 0.05) bot.vy = -12;
-    }
-
-    // Attack Logic
-    if (absDist < 80 && !bot.attacking && !bot.attackCooldown) {
-        if (Math.random() < 0.1) {
-             const type = Math.random() < 0.7 ? "light" : "heavy";
-             bot.attack(enemy, type);
+    // State Machine
+    bot.aiTimer--;
+    if (bot.aiTimer <= 0) {
+        // Pick new state
+        const r = Math.random();
+        if (r < 0.5) {
+            bot.aiState = "APPROACH";
+            bot.aiTimer = 60 + Math.random() * 60; // 1-2 sec
+            bot.aiTargetDist = 50 + Math.random() * 30; // Random aggressive range
+        } else if (r < 0.8) {
+            bot.aiState = "RETREAT";
+            bot.aiTimer = 30 + Math.random() * 40; // 0.5-1.2 sec
+            bot.aiTargetDist = 200 + Math.random() * 100; // Safe range
+        } else {
+            bot.aiState = "HOLD";
+            bot.aiTimer = 20 + Math.random() * 30; // Short pause
         }
     }
 
-    // Crouch Logic (Defense)
-    // If enemy is attacking and close, chance to crouch
-    if (enemy.attacking && absDist < 100) {
-        if (!bot.isCrouching && bot.canCrouch && Math.random() < 0.3) {
+    // Logic based on State
+    const dist = enemy.x - bot.x;
+    const absDist = Math.abs(dist);
+
+    // Always face enemy
+    if (dist > 0) bot.facing = 1;
+    else bot.facing = -1;
+
+    if (bot.aiState === "APPROACH") {
+        if (absDist > bot.aiTargetDist) {
+            bot.vx = bot.facing * 4;
+        } else if (absDist < bot.aiTargetDist - 20) {
+            bot.vx = -bot.facing * 2; // Back off a bit
+        }
+
+        // Attack when in range
+        if (absDist < 80 && !bot.attacking && !bot.attackCooldown) {
+             if (Math.random() < 0.1) {
+                 const type = Math.random() < 0.7 ? "light" : "heavy";
+                 bot.attack(enemy, type);
+             }
+        }
+    }
+    else if (bot.aiState === "RETREAT") {
+        if (absDist < bot.aiTargetDist) {
+            bot.vx = -bot.facing * 4; // Run away
+        }
+        // Jump while retreating?
+        if (bot.vx !== 0 && Math.random() < 0.02 && bot.vy === 0) {
+            bot.vy = -12;
+        }
+    }
+    else if (bot.aiState === "HOLD") {
+        bot.vx = 0;
+        // Defensive crouch chance
+        if (Math.random() < 0.05 && !bot.isCrouching && bot.canCrouch) {
+             bot.isCrouching = true;
+             bot.crouchStartTime = Date.now();
+             bot.height = 35;
+        }
+    }
+
+    // Universal Defense (Reaction to attack)
+    if (enemy.attacking && absDist < 120) {
+        // Chance to Dodge/Retreat
+        if (Math.random() < 0.1) {
+             bot.vx = -bot.facing * 6; // Dash back
+        }
+        // Chance to Crouch
+        if (!bot.isCrouching && bot.canCrouch && Math.random() < 0.2) {
             bot.isCrouching = true;
             bot.crouchStartTime = Date.now();
             bot.height = 35;
         }
     }
 
+    // Jump if enemy is jumping/above and close (Anti-Air)
+    if (enemy.y < GROUND - 50 && absDist < 100 && bot.vy === 0) {
+        if (Math.random() < 0.05) bot.vy = -12;
+    }
+
     // Release Crouch
     if (bot.isCrouching) {
-        if (Date.now() - bot.crouchStartTime > 500 || !enemy.attacking) {
+        if (Date.now() - bot.crouchStartTime > 500 || (!enemy.attacking && bot.aiState !== "HOLD")) {
              bot.isCrouching = false;
              bot.height = 80;
              bot.canCrouch = false;
