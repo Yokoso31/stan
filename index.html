@@ -252,14 +252,10 @@ function initGame(mode) {
   document.getElementById('checkMsg').textContent = "";
   document.getElementById('promotionModal').classList.remove('active');
 
-  if (gameMode === 'pve') {
-    humanColor = Math.random() < 0.5 ? 'white' : 'black';
-  } else {
-    humanColor = 'white'; // Defaut
-  }
+  humanColor = Math.random() < 0.5 ? 'white' : 'black';
 
   const boardEl = document.getElementById('board');
-  if (gameMode === 'pve' && humanColor === 'black') {
+  if (humanColor === 'black') {
     boardEl.classList.add('flipped');
   } else {
     boardEl.classList.remove('flipped');
