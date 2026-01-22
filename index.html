@@ -181,6 +181,16 @@ function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
+function drawLimb(x, y, length, angle) {
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(
+    x + Math.cos(angle) * length,
+    y + Math.sin(angle) * length
+  );
+  ctx.stroke();
+}
+
 // Game State
 let gameState = "MENU"; // MENU, PLAYING, GAMEOVER
 let freezeFrames = 0;
