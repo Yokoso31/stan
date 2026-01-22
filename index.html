@@ -105,7 +105,7 @@
     /* PHYSIQUE */
     let isJumping = false;
     let velocity = 0;
-    const gravity = 0.6;
+    const gravity = 1.2;
 
     /* JEU */
     let obstacles = [];
@@ -151,7 +151,7 @@
     /* SAUT */
     function jump() {
         if (!isJumping) {
-            velocity = 12;
+            velocity = 18;
             isJumping = true;
             playSound('jump');
         }
@@ -171,8 +171,8 @@
         game.appendChild(obstacle);
         obstacles.push(obstacle);
 
-        // More cactus: 500ms to 1500ms
-        if (gameRunning) setTimeout(createObstacle, Math.random() * 1000 + 500);
+        // More cactus: 800ms to 2000ms (spaced out)
+        if (gameRunning) setTimeout(createObstacle, Math.random() * 1200 + 800);
     }
 
     /* COLLISION */
