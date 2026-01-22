@@ -2,14 +2,14 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Horror Space Invaders</title>
+<title>Neon Space Invaders</title>
 <style>
     html, body {
         margin: 0;
-        background: radial-gradient(circle at center, #200000, #000);
+        background: radial-gradient(circle at center, #050510, #000);
         overflow: hidden;
-        font-family: 'Courier New', monospace;
-        color: #ff3333;
+        font-family: 'Arial', sans-serif;
+        color: cyan;
     }
 
     canvas {
@@ -23,7 +23,7 @@
         width: 100%;
         text-align: center;
         font-size: 20px;
-        text-shadow: 0 0 10px #ff0000;
+        text-shadow: 0 0 10px cyan;
         font-weight: bold;
     }
 
@@ -31,36 +31,36 @@
         position: absolute;
         inset: 0;
         display: none;
-        background: rgba(0,0,0,0.9);
+        background: rgba(0,0,0,0.85);
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        color: #ff0000;
-        text-shadow: 0 0 20px #ff0000;
+        color: magenta;
+        text-shadow: 0 0 20px magenta;
     }
 
     #gameOver h1 {
         font-size: 60px;
         margin-bottom: 20px;
-        border-bottom: 2px solid #ff0000;
+        border-bottom: 2px solid magenta;
     }
 
     #gameOver button {
         margin-top: 20px;
         padding: 12px 30px;
         font-size: 20px;
-        font-family: 'Courier New', monospace;
+        font-family: 'Arial', sans-serif;
         cursor: pointer;
-        background: #110000;
-        color: #ff3333;
-        border: 2px solid #ff3333;
-        box-shadow: 0 0 15px #ff0000;
+        background: #000;
+        color: magenta;
+        border: 2px solid magenta;
+        box-shadow: 0 0 15px magenta;
         transition: 0.3s;
     }
 
     #gameOver button:hover {
-        background: #ff3333;
-        color: black;
+        background: magenta;
+        color: white;
     }
 </style>
 </head>
@@ -81,6 +81,9 @@
 ========================== */
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+
+const playerImg = new Image();
+playerImg.src = "player.png";
 
 let score = 0;
 let lives = 3;
@@ -577,7 +580,7 @@ function drawBoss() {
     if (boss.isPhantom) {
         ctx.shadowColor = "#00ff00"; // Phantom Green
     } else {
-        ctx.shadowColor = boss.isMega ? "#aa00ff" : "#ff0000";
+        ctx.shadowColor = boss.isMega ? "#aa00ff" : "magenta";
     }
     ctx.shadowBlur = 20;
 
@@ -596,7 +599,7 @@ function drawBoss() {
     if (boss.isPhantom) {
         ctx.fillStyle = "#ccffcc"; // Ghostly Green
     } else {
-        ctx.fillStyle = boss.isMega ? "#ccbbff" : "#eeeeee";
+        ctx.fillStyle = boss.isMega ? "#ccbbff" : "#ffccff";
     }
 
     ctx.beginPath();
@@ -614,7 +617,7 @@ function drawBoss() {
     // Glowing eyes
     if (boss.phase === BOSS_PHASE.STUNNED) {
         // X eyes for stunned
-        ctx.strokeStyle = "#ff0000";
+        ctx.strokeStyle = "magenta";
         ctx.lineWidth = 3;
 
         // Left Eye X
@@ -628,7 +631,7 @@ function drawBoss() {
         if (boss.isPhantom) {
              ctx.fillStyle = "#00ff00";
         } else {
-             ctx.fillStyle = boss.phase === BOSS_PHASE.LASER_FIRE ? "#ffffff" : "#ff0000";
+             ctx.fillStyle = boss.phase === BOSS_PHASE.LASER_FIRE ? "#ffffff" : "magenta";
         }
         ctx.beginPath();
         ctx.arc(-15, -10, 4, 0, Math.PI*2);
@@ -645,7 +648,7 @@ function drawBoss() {
 
     if (boss.isPhantom) ctx.fillStyle = "#00ff00";
     else if (boss.isMega) ctx.fillStyle = "#aa00ff";
-    else ctx.fillStyle = "#ff0000";
+    else ctx.fillStyle = "magenta";
 
     ctx.fillRect(boss.x, boss.y - 30, boss.width * (Math.max(0, boss.hp) / boss.maxHp), 10);
     ctx.strokeStyle = "#fff";
@@ -675,7 +678,7 @@ function createExplosion(x, y) {
             vx: (Math.random() - 0.5) * 4,
             vy: (Math.random() - 0.5) * 4,
             life: 40,
-            color: Math.random() > 0.5 ? "#ff0000" : "#880000"
+            color: Math.random() > 0.5 ? "cyan" : "magenta"
         });
     }
 }
@@ -972,11 +975,25 @@ function draw() {
 
     // Joueur
     ctx.shadowBlur = 15;
-    ctx.shadowColor = player.invincible ? "#ffd700" : "#ff0000";
-    ctx.fillStyle = player.invincible ? "#ffff00" : "#bbbbbb";
+    ctx.shadowColor = player.invincible ? "gold" : "cyan";
+
+    // Draw Sprite
+    if (playerImg.complete) {
+        ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
+    } else {
+        // Fallback
+        ctx.fillStyle = "cyan";
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+    }
+
+    if (player.invincible) {
+         ctx.strokeStyle = "gold";
+         ctx.lineWidth = 2;
+         ctx.strokeRect(player.x - 2, player.y - 2, player.width + 4, player.height + 4);
+    }
 
     if (player.shield) {
-        ctx.strokeStyle = "#0000ff";
+        ctx.strokeStyle = "blue";
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(player.x + player.width/2, player.y + player.height/2, 30, 0, Math.PI * 2);
@@ -984,30 +1001,30 @@ function draw() {
     }
 
     if (player.rapidFireTimer > 0) {
-        ctx.shadowColor = "#ffff00";
+        ctx.shadowColor = "yellow";
     }
 
     if (player.charge > 0) {
-        ctx.shadowColor = `rgba(255, 100, 0, ${player.charge/60})`;
+        ctx.shadowColor = `rgba(0, 255, 255, ${player.charge/60})`;
         ctx.shadowBlur = 10 + (player.charge/2);
     }
 
-    ctx.fillRect(player.x, player.y, player.width, player.height);
-    ctx.fillRect(player.x + 15, player.y - 10, 10, 10);
-
-    ctx.fillStyle = player.rapidFireTimer > 0 ? "#ffff00" : "#ff4400";
+    // Bullets
+    ctx.fillStyle = player.rapidFireTimer > 0 ? "yellow" : "cyan";
     bullets.forEach(b => ctx.fillRect(b.x - 2, b.y, 4, 12));
 
-    ctx.fillStyle = "#ffaa00";
-    ctx.shadowColor = "#ff0000";
+    // Mega Bombs (Magenta)
+    ctx.fillStyle = "magenta";
+    ctx.shadowColor = "magenta";
     megaBombs.forEach(b => {
         ctx.beginPath();
         ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
         ctx.fill();
     });
 
+    // Explosions (Purple/Cyan)
     damageExplosions.forEach(e => {
-        ctx.fillStyle = `rgba(255, 50, 0, ${e.life/20})`;
+        ctx.fillStyle = `rgba(180, 0, 255, ${e.life/20})`;
         ctx.beginPath();
         ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
         ctx.fill();
@@ -1023,7 +1040,7 @@ function draw() {
         ctx.fillRect(p.x - 10, p.y - 10, 20, 20);
 
         ctx.fillStyle = "black";
-        ctx.font = "bold 15px Courier New";
+        ctx.font = "bold 15px Arial, sans-serif";
         ctx.fillText(p.label, p.x - 5, p.y + 5);
     });
 
@@ -1037,7 +1054,7 @@ function draw() {
             ctx.translate(a.x, a.y);
             ctx.rotate(a.angle * 0.2);
 
-            ctx.shadowColor = "#330000";
+            ctx.shadowColor = "#003333";
             ctx.shadowBlur = 10;
 
             ctx.fillStyle = "#eeeeee";
@@ -1080,9 +1097,9 @@ function draw() {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         ctx.fillStyle = "white";
-        ctx.font = "bold 40px 'Courier New', monospace";
+        ctx.font = "bold 40px 'Arial', sans-serif";
         ctx.textAlign = "center";
-        ctx.shadowColor = "red";
+        ctx.shadowColor = "cyan";
         ctx.shadowBlur = 10;
         ctx.fillText("PAUSE", canvas.width / 2, canvas.height / 2);
         ctx.textAlign = "start"; // reset to default
