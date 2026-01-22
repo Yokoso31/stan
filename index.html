@@ -67,6 +67,13 @@ body {
   box-shadow: inset 0 0 15px var(--neon-blue);
 }
 
+.board.flipped {
+  transform: rotate(180deg);
+}
+.board.flipped .square {
+  transform: rotate(180deg);
+}
+
 .selected {
   background: rgba(180, 76, 255, 0.5) !important;
   box-shadow: inset 0 0 25px var(--neon-purple);
@@ -222,6 +229,7 @@ let legalMoves = [];
 let promoting = null; // {from, to} si en cours de promotion
 let gameOver = false;
 let gameMode = 'pvp'; // 'pvp' | 'pve'
+let humanColor = 'white';
 
 // Initialisation
 function initGame(mode) {
@@ -244,8 +252,25 @@ function initGame(mode) {
   document.getElementById('checkMsg').textContent = "";
   document.getElementById('promotionModal').classList.remove('active');
 
+  if (gameMode === 'pve') {
+    humanColor = Math.random() < 0.5 ? 'white' : 'black';
+  } else {
+    humanColor = 'white'; // Defaut
+  }
+
+  const boardEl = document.getElementById('board');
+  if (gameMode === 'pve' && humanColor === 'black') {
+    boardEl.classList.add('flipped');
+  } else {
+    boardEl.classList.remove('flipped');
+  }
+
   updateGameState();
   render();
+
+  if (gameMode === 'pve' && humanColor === 'black') {
+    setTimeout(playBot, 1000);
+  }
 }
 
 function updateGameState() {
@@ -274,7 +299,11 @@ function updateGameState() {
       statusEl.textContent = "MATCH NUL";
       checkMsg.textContent = "Matériel insuffisant";
     } else {
-      statusEl.textContent = `Tour : ${turn === 'white' ? 'Blanc' : 'Noir'}`;
+      let txt = `Tour : ${turn === 'white' ? 'Blanc' : 'Noir'}`;
+      if (gameMode === 'pve') {
+        txt += ` (Vous: ${humanColor === 'white' ? 'Blancs' : 'Noirs'})`;
+      }
+      statusEl.textContent = txt;
       if (inCheck) {
         checkMsg.textContent = "⚠️ ÉCHEC ⚠️";
         Sounds.check();
@@ -352,7 +381,7 @@ let selectedSquare = null;
 function handleClick(x, y) {
   if (gameOver) return;
   if (promoting) return;
-  if (gameMode === 'pve' && turn === 'black') return;
+  if (gameMode === 'pve' && turn !== humanColor) return;
 
   const p = board[y][x];
   const isOwnPiece = p !== '.' && (turn === 'white' ? p === p.toUpperCase() : p === p.toLowerCase());
@@ -433,7 +462,7 @@ function executeMove(move) {
   updateGameState();
   render();
 
-  if (!gameOver && gameMode === 'pve' && turn === 'black') {
+  if (!gameOver && gameMode === 'pve' && turn !== humanColor) {
     setTimeout(playBot, 500);
   }
 }
@@ -554,25 +583,31 @@ function getBotMove(difficulty) {
     return legalMoves[Math.floor(Math.random() * legalMoves.length)];
   }
 
+  const botColor = (gameMode === 'pve' && humanColor === 'white') ? 'black' : 'white';
+
   if (difficulty === 'medium') {
     // Profondeur 1 (Greedy)
-    let bestScore = -Infinity;
-    let bestMoves = [];
+    // Si Bot est Noir, il veut Maximiser le score.
+    // Si Bot est Blanc, il veut Minimiser le score.
 
-    // NOTE: On doit simuler chaque coup.
-    // L'état actuel est déjà "bon" pour applyVirtualMove car c'est au tour du bot (Black)
-    // Mais executeMove a un setTimeout. C'est pourquoi on a fait applyVirtualMove.
+    let bestScore = botColor === 'black' ? -Infinity : Infinity;
+    let bestMoves = [];
 
     for (const move of legalMoves) {
       if (move.promotion) move.promotionPiece = 'q'; // Hypothèse simple
 
       const state = saveState();
       applyVirtualMove(move);
-      // Après le coup du bot, c'est au tour de White.
-      // On évalue la position. EvaluateBoard renvoie score positif pour avantage Black.
       const score = evaluateBoard();
 
-      if (score > bestScore) {
+      let isBetter = false;
+      if (botColor === 'black') {
+        if (score > bestScore) { isBetter = true; }
+      } else {
+        if (score < bestScore) { isBetter = true; }
+      }
+
+      if (isBetter) {
         bestScore = score;
         bestMoves = [move];
       } else if (score === bestScore) {
@@ -582,13 +617,14 @@ function getBotMove(difficulty) {
       restoreState(state);
     }
 
-    return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+    return bestMoves.length ? bestMoves[Math.floor(Math.random() * bestMoves.length)] : legalMoves[0];
   }
 
   if (difficulty === 'hard') {
     // Minimax Depth 3
     const depth = 3;
-    const { move } = minimax(depth, -Infinity, Infinity, true);
+    const isMaximizing = (botColor === 'black');
+    const { move } = minimax(depth, -Infinity, Infinity, isMaximizing);
     return move;
   }
 
