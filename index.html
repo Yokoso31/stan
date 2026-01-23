@@ -710,7 +710,7 @@ function generateAllLegalMoves(color) {
     const savedBoard = board.map(r => [...r]);
 
     // Appliquer
-    board[m.to.y][m.to.x] = m.promotion ? m.promotionPiece : savedBoard[m.from.y][m.from.x];
+    board[m.to.y][m.to.x] = m.promotion ? (m.promotionPiece || (color==='white'?'Q':'q')) : savedBoard[m.from.y][m.from.x];
     board[m.from.y][m.from.x] = '.';
     if (m.enPassant) {
       board[m.from.y][m.to.x] = '.';
